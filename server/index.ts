@@ -38,12 +38,14 @@ const wss = new WebSocketServer({ noServer: true });
 server.on('upgrade', (request, socket, head) => {
   if (request.url?.startsWith('/wisp/')) {
     wss.handleUpgrade(request, socket, head, (ws) => {
-      wisp.route(ws, request);
+      // Use the proper method name for the public wisp-server-node package
+      wisp.routeRequest(ws);
     });
   } else {
     socket.destroy();
   }
 });
+
 
 server.listen(Number(PORT), HOST, () => {
   console.log(`[hummingengine] Native backend running on http://${HOST}:${PORT}`);
