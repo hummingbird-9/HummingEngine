@@ -2,8 +2,8 @@ import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
 import { WebSocketServer } from 'ws';
-// Pull the stable server module out of the new wisp-js library scope
-import { server as wisp } from '@mercuryworkshop/wisp-js/server';
+// Pull the server engine cleanly out of the main module export block
+import { server as wisp } from '@mercuryworkshop/wisp-js';
 
 const PORT = process.env.PORT || 10000;
 const HOST = '0.0.0.0';
