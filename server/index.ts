@@ -9,7 +9,7 @@ import { server as wisp } from '@mercuryworkshop/wisp-js';
 const PORT = process.env.PORT || 10000;
 const HOST = '0.0.0.0';
 
-const PUBLIC_DIR = path.join(process.cwd(), 'public');
+const PUBLIC_DIR = path.join(process.cwd(), 'dist', 'public');
 
 // This line initialization was missing:
 const server = http.createServer((req, res) => {
