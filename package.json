@@ -7,11 +7,8 @@
     "build": "tsc",
     "start": "node dist/server/index.js"
   },
-  "keywords": [],
-  "author": "hummingbirdtech",
-  "license": "ISC",
   "dependencies": {
-    "@uwu/wisp-server-node": "^1.1.2",
+    "wisp-server-node": "^1.1.2",
     "ws": "^8.18.0"
   },
   "devDependencies": {
