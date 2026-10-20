@@ -2,11 +2,14 @@ import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
 import { WebSocketServer } from 'ws';
-import wisp from 'wisp-server-node';
+// Pull the stable server module out of the new wisp-js library scope
+import { server as wisp } from '@mercuryworkshop/wisp-js/server';
 
 const PORT = process.env.PORT || 10000;
 const HOST = '0.0.0.0';
-const PUBLIC_DIR = path.join(__dirname, '../public');
+
+// Absolute root mapping to ensure assets load inside the Docker container
+const PUBLIC_DIR = path.join(process.cwd(), 'public');
 
 const server = http.createServer((req, res) => {
   const urlPath = req.url === '/' ? '/index.html' : req.url || '/index.html';
@@ -35,10 +38,11 @@ const server = http.createServer((req, res) => {
 });
 
 const wss = new WebSocketServer({ noServer: true });
+
 server.on('upgrade', (request, socket, head) => {
   if (request.url?.startsWith('/wisp/')) {
     wss.handleUpgrade(request, socket, head, (ws) => {
-      // Use the proper method name for the public wisp-server-node package
+      // Connect to the upgraded, stable wisp-js request handler stream
       wisp.routeRequest(ws);
     });
   } else {
@@ -46,7 +50,6 @@ server.on('upgrade', (request, socket, head) => {
   }
 });
 
-
 server.listen(Number(PORT), HOST, () => {
-  console.log(`[hummingengine] Native backend running on http://${HOST}:${PORT}`);
+  console.log(`[hummingengine] Native stable backend running on http://${HOST}:${PORT}`);
 });
