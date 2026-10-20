@@ -3,18 +3,15 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { WebSocketServer } from 'ws';
 
-// @ts-ignore - Bypass missing type definition declaration error
+// @ts-ignore
 import { server as wisp } from '@mercuryworkshop/wisp-js';
 
 const PORT = process.env.PORT || 10000;
 const HOST = '0.0.0.0';
 
-const PORT = process.env.PORT || 10000;
-const HOST = '0.0.0.0';
-
-// Absolute root mapping to ensure assets load inside the Docker container
 const PUBLIC_DIR = path.join(process.cwd(), 'public');
 
+// This line initialization was missing:
 const server = http.createServer((req, res) => {
   const urlPath = req.url === '/' ? '/index.html' : req.url || '/index.html';
   const targetFilePath = path.join(PUBLIC_DIR, urlPath);
