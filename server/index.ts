@@ -2,8 +2,12 @@ import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
 import { WebSocketServer } from 'ws';
-// Pull the server engine cleanly out of the main module export block
+
+// @ts-ignore - Bypass missing type definition declaration error
 import { server as wisp } from '@mercuryworkshop/wisp-js';
+
+const PORT = process.env.PORT || 10000;
+const HOST = '0.0.0.0';
 
 const PORT = process.env.PORT || 10000;
 const HOST = '0.0.0.0';
