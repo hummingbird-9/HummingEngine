@@ -1,0 +1,22 @@
+{
+  "name": "hummingengine-backend",
+  "version": "1.0.0",
+  "description": "High-performance tracking-free native Wisp protocol proxy container",
+  "main": "dist/server/index.js",
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/server/index.js"
+  },
+  "keywords": [],
+  "author": "hummingbirdtech",
+  "license": "ISC",
+  "dependencies": {
+    "@uwu/wisp-server-node": "^1.1.2",
+    "ws": "^8.18.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.0",
+    "@types/ws": "^8.5.10",
+    "typescript": "^5.3.3"
+  }
+}
