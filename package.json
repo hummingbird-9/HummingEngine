@@ -8,7 +8,7 @@
     "start": "node dist/server/index.js"
   },
   "dependencies": {
-    "wisp-server-node": "^1.1.2",
+    "@mercuryworkshop/wisp-js": "^0.4.1",
     "ws": "^8.18.0"
   },
   "devDependencies": {
