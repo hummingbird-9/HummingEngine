@@ -72,7 +72,7 @@ async function navigate(raw, push = true) {
   if (!ready) { status('Proxy is not ready'); $('setupError').classList.remove('hidden'); $('setupError').textContent = setupFailure || 'The proxy is still starting. Check browser console for errors.'; return; }
   let url;
   try { url = resolveUrl(raw); if (!url) return; new URL(url); } catch (err) { return alert(err.message); }
-  showLoading(true, 'Warming up the hummingbird engines…');
+  showLoading(true, 'the sound of the scramjet and lack of your ear protection instantly destroy your eardrums as you see hummingbirds getting blasted out to search for results…');
   try {
     await switchTransport();
     ensureFrame();
