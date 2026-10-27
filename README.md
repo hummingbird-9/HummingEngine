@@ -1,6 +1,6 @@
 # HummingProxy
 
-Green-themed Scramjet v1 browser proxy with TypeScript backend, Render Blueprint, libcurl/Epoxy selector, browser-local settings, search selector, basic cosmetic ad hiding, and *optional* external Tor Wisp relay.
+Scramjet v1 browser proxy with TypeScript backend, Render Blueprint, libcurl/Epoxy selector, browser-local settings, search selector, basic cosmetic ad hiding, and *optional* external Tor Wisp relay.
 
 ## Deployment
 
@@ -11,7 +11,7 @@ Green-themed Scramjet v1 browser proxy with TypeScript backend, Render Blueprint
 
 Run locally using Node 20+: `npm install && npm run build && npm start`.
 
-## Important realities
+## Important
 
 - Uses **Scramjet 1.1.0**, the latest stable published package identified during preparation. The upstream GitHub main branch is a different 2.x architecture, not a drop-in upgrade. Upgrading requires rewriting transport/controller wiring.
 - Epoxy 2.x and libcurl 1.x are intentionally paired with bare-mux 2.x / Scramjet 1.x. Do not blindly upgrade to Epoxy 3.x or libcurl 2.x (proxy-transports APIs).
