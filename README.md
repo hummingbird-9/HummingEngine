@@ -1,35 +1,41 @@
 # HummingProxy
 
-Scramjet browser proxy with TypeScript backend, Render Blueprint, libcurl/Epoxy selector, browser-local settings, search selector, basic cosmetic ad hiding, and Tor support :p.
+Scramjet 1.1.0 and BareMux 2.x with a TypeScript Fastify server. The homepage retains the supplied HummingbirdTech logo, custom text and forest-green CSS. It has device-local bookmarks with a hideable bar, fullscreen state control, cosmetic ad hiding and Google default search.
 
-## Deployment
+## Render deployment with Tor
 
-1. Upload this entire folder to a GitHub repository.
-2. On Render, create **New > Blueprint** and connect the repository containing `render.yaml` (or create a Node Web Service, build: `npm install && npm run build`, start: `npm start`).
-3. Choose Free. Render supplies `PORT` and HTTPS.
-4. Visit the assigned `https://<your-service>.onrender.com` URL.
+This version includes a Dockerfile that installs the Tor daemon and the Python Wisp server. The Wisp process is configured to use `socks5h://127.0.0.1:9050` and block UDP. HummingProxy verifies the Tor exit through `check.torproject.org/api/ip` before reporting Tor available and accepting `/tor-wisp/` WebSocket connections.
 
-Run locally using Node 20+: `npm install && npm run build && npm start`.
+The existing Render service is **Node**. Merely uploading Dockerfile does **not** switch its runtime. To use built-in Tor, create a Render Docker service using this repository, `Dockerfile` at repo root, and the Free plan, or use a Blueprint from `render.yaml`. This may result in a different service URL. If remaining on the current Node service, Tor stays unavailable unless a separately configured Tor Wisp is provided.
 
-## Important
+Docker free-tier compatibility is not guaranteed: 512 MB memory and limited CPU can make Tor bootstrap slow or result in service restarts. Logs should be checked for Tor bootstrap, Python Wisp startup and port binding. The check endpoint must be reachable. Tor availability is verified, not assumed.
 
-- Uses **Scramjet 1.1.0**, the latest stable published package identified during preparation. The upstream GitHub main branch is a different 2.x architecture, not a drop-in upgrade. Upgrading requires rewriting transport/controller wiring.
-- Epoxy 2.x and libcurl 1.x are intentionally paired with bare-mux 2.x / Scramjet 1.x. Do not blindly upgrade to Epoxy 3.x or libcurl 2.x (proxy-transports APIs).
-- **Tor is off by default and disabled unless `TOR_WISP_URL` points to a separately maintained, trusted `wss://` Wisp relay that *actually sends all outbound TCP traffic over Tor*. This project does not install Tor on Render. Configuring an ordinary Wisp server is not Tor.**
-- **Ad blocking is cosmetic only**, hiding a handful of common ad containers. It is not network filtering and doesn't prevent tracking or downloads. A more complete solution requires integrating an audited adblock plugin or server-side filtering with per-session access controls.
-- Firefox is not an independent search engine. The option routes search requests to Google, consistent with Firefox's common default search; it is labeled as such in the UI.
-- Public web proxies can be abused as an open relay. Add authentication and per-IP/per-user limits before sharing the service. The Wisp backend disables private and loopback IPs to reduce SSRF risk, but no production security audit has been performed.
-- Render Free spins down after 15 minutes idle and can take roughly a minute to wake. Free tiers have bandwidth and runtime allowances. Browser rewriting, DRM, login, and CAPTCHAs vary by site. Scramjet/libcurl WebAssembly is heavier than a normal webpage even with this minimal UI.
-- Source dependencies include AGPL-licensed transports; check their licenses when distributing or deploying modified versions.
-- The brand logo is referenced from the URL supplied in the request. If that host is blocked or drops the file, a styled text fallback appears. For reliability, replace with a licensed local image at `/public/logo.png` and change the URL in `public/app.js`.
+The Python Wisp server is AGPL-3.0 licensed. Review the relevant license and source-sharing requirements before distributing or operating a modified version. It is installed from PyPI in the Docker image.
 
-## Security guidance
+## Existing Node runtime without Tor
 
-- Put an identity gateway or authentication layer in front of a public deployment.
-- Restrict outbound destinations, connections, and bandwidth; the provided Wisp service is not hardened enough for an unauthenticated public proxy.
-- Never enable `allow_private_ips` or `allow_loopback_ips` on an internet-facing instance.
-- `TOR_WISP_URL` exposes the relay URL to visitors and is *not* an authentication secret.
+Build command: `npm install && npm run build`
 
-## Verification
+Start command: `npm start`
 
-This project was authored without access to npm downloads or a running Render deployment in the build environment. It has **not** been end-to-end installed or browser-tested. Please validate npm resolution, service worker registration, package static paths, and Wisp connections during the first deploy. In particular, upstream package APIs can differ across minor versions.
+The regular Wisp relay runs in the Node server. Built-in Tor is only available with the Docker stack. `TOR_WISP_URL` remains an optional external route.
+
+## Notes
+
+Tabs and bookmarks are stored locally on the device. Tabs restore as URLs after reload, and load individually when selected to conserve Chromebook memory. Tabs are limited to five. Bookmark removal is available through right-click or long context menu.
+
+The loader now sizes the supplied PNG without stretching it. If the PNG itself is low resolution, browsers cannot add missing pixels; use a larger copy of the same image to fully resolve blur.
+
+The project hasn't been tested against Render's live Docker build, third-party websites, managed Chromebooks or a Tor bootstrap under the Free plan. A 404 during Render cold start or network policy blocks cannot be fixed by frontend changes alone. Some sites break under Scramjet due to browser, worker or site compatibility. Do not treat this as an anonymity guarantee: the hosting provider and relay can observe connection metadata and endpoints can identify the browser.
+
+Public Wisp endpoints can be abused. Do not share a public deployment widely without rate limiting, access controls and outbound abuse prevention.
+
+## Scramjet 2 experimental engine
+
+Settings → Scramjet version switches between the default stable 1.x and experimental 2.x. Changing engines reloads the shell and existing open frames; saved tab addresses and bookmarks are retained. Version 2 is installed into an isolated `v2/node_modules` directory during `npm run build`, because its transport majors and controller are incompatible with 1.x. Its worker only controls `/v2/` paths. The build needs npm registry access. Version 2 has not been end-to-end browser-tested in this release.
+
+## Custom search engine
+
+In Chrome Settings → Search engine → Manage search engines and site search → Add, set Search engine to `HummingProxy`, shortcut to `hp`, URL with %s to `https://hummingproxy.onrender.com/?q=%s`. Chrome may offer `Make default` in the row menu; school-managed browsers may prohibit this. The proxy loads your configured search engine after startup. This does not make Google use HummingProxy automatically.
+
+There is no application tab limit. Tabs shrink to 42px and then scroll horizontally; device RAM remains the practical limit.
