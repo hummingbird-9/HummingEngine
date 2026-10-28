@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#0a2e0a">
+  <title>HummingProxy</title>
+  <link rel="stylesheet" href="/style.css">
+  <script src="/scram/scramjet.all.js" defer></script>
+  <script src="/app.js" defer></script>
+</head>
+<body>
+  <div class="shell">
+    <header class="top-button-container">
+      <button type="button" id="homeBtnTop">Home</button>
+    </header>
+    <div class="utility-controls-container">
+      <span id="status" role="status">Starting proxy…</span>
+      <button type="button" id="settingsBtn">Settings</button>
+    </div>
+    <main>
+      <section id="home" class="home">
+        <div class="logo-container" id="logo">
+          <img class="brand-logo" id="brandLogo" alt="HummingbirdTech logo" src="https://uploads.onecompiler.io/447kr4gf2/44f9wbztv/humming%5Bbird%5DTech%20logo%20%284%29.png">
+          <span id="logoFallback" class="logo-fallback hidden">HummingProxy</span>
+        </div>
+        <h1>We launch hummingbirds out the back of a scramjet to search the web faster.</h1>
+        <form id="searchForm" class="search-container">
+          <input id="address" class="search-bar" type="text" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="Search or enter a URL" aria-label="Search or URL">
+          <button id="go" type="submit">Search</button>
+        </form>
+        <p id="setupError" class="setup-error hidden" role="alert"></p>
+        <button id="repairProxy" type="button" class="hidden">Repair proxy storage</button>
+      </section>
+      <section id="browser" class="browser hidden">
+        <div class="tabs-header"><div id="tabStrip" class="tab-strip" aria-label="Tabs"></div><button id="newTab" type="button" title="New tab">+</button></div>
+        <nav class="viewport-navbar" aria-label="Browser controls">
+          <div class="viewport-controls">
+            <button id="back" type="button" title="Back">←</button>
+            <button id="forward" type="button" title="Forward">→</button>
+            <button id="reload" type="button" title="Reload">↻</button>
+            <button id="homeBtn" type="button" title="Home">Home</button>
+          </div>
+          <form id="browserForm" class="browser-form">
+            <input id="browserAddress" type="text" autocomplete="off" spellcheck="false" aria-label="Browser address">
+            <button type="submit">Go</button>
+          </form>
+          <button id="bookmarkToggle" type="button" title="Bookmark this page">☆</button>
+          <button id="expand" type="button" title="Fullscreen">⛶</button>
+        </nav>
+        <div id="bookmarkBar" class="bookmark-bar"><span class="bookmark-heading">Bookmarks</span><div id="bookmarkItems" class="bookmark-items"></div></div>
+        <div id="frameHost" class="iframe-sandbox-container">
+        <div id="emptyTab" class="empty-tab hidden">
+          <div class="empty-tab-content">
+            <h2>New tab</h2>
+            <form id="emptyTabForm" class="empty-tab-form">
+              <input id="emptyTabAddress" type="text" autocomplete="off" spellcheck="false" placeholder="Search Google or enter a URL" aria-label="Search in new tab">
+              <button type="submit">Search</button>
+            </form>
+          </div>
+        </div>
+        </div>
+      </section>
+    </main>
+    <aside id="settings" class="settings-panel hidden">
+      <div class="settings-head"><h2>Settings</h2><button id="closeSettings" type="button">×</button></div>
+      <label class="field">Search engine<select id="engine"><option value="duckduckgo">DuckDuckGo</option><option value="google" selected>Google</option><option value="firefox">Firefox (Google results)</option></select></label>
+      <label class="field">Scramjet version<select id="scramjetVersion"><option value="1" selected>Scramjet 1 (default)</option><option value="2">Scramjet 2 (experimental)</option></select></label>
+      <label class="field">Transport<select id="transport"><option value="libcurl">libcurl (default)</option><option value="epoxy">Epoxy</option></select></label>
+      <label class="toggle"><span>Enable adblock<small>Basic page-element hiding only</small></span><input id="adblock" type="checkbox"></label>
+      <label class="toggle"><span>Enable Tor browsing<small id="torNote">Checking built-in Tor…</small></span><input id="tor" type="checkbox"></label>
+      <label class="toggle"><span>Show bookmark bar</span><input id="showBookmarks" type="checkbox" checked></label>
+      <p class="settings-note">Bookmarks are stored on this device. Tor requires the Docker backend and may start slowly.</p>
+    </aside>
+    <div class="loader hidden" id="loader" role="status" aria-live="polite">
+      <div class="loading-bird" aria-hidden="true"><img src="https://uploads.onecompiler.io/447kr4gf2/44f9wbztv/humming%5Bbird%5DTech%20logo%20%285%29.png" alt=""></div>
+      <p>our hummingbird army is looking for relevant sites</p>
+      <small id="loadDetail">Connecting…</small>
+      <button type="button" id="cancelLoad">Cancel</button>
+    </div>
+    <footer>Do captchas slowly. The scramjets launching the birds are so fast, you might get stuck in a loop.</footer>
+  </div>
+</body>
+</html>
