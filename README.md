@@ -1,6 +1,6 @@
 # HummingProxy
 
-Scramjet v1 browser proxy with TypeScript backend, Render Blueprint, libcurl/Epoxy selector, browser-local settings, search selector, basic cosmetic ad hiding, and *optional* external Tor Wisp relay.
+Scramjet browser proxy with TypeScript backend, Render Blueprint, libcurl/Epoxy selector, browser-local settings, search selector, basic cosmetic ad hiding, and Tor support :p.
 
 ## Deployment
 
