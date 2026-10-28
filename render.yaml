@@ -1,0 +1,10 @@
+services:
+  - type: web
+    name: hummingproxy
+    runtime: docker
+    plan: free
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /health
+    envVars:
+      - key: BUILTIN_TOR
+        value: "1"
