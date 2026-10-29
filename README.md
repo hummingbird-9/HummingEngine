@@ -1,6 +1,6 @@
 # HummingProxy
 
-Scramjet 1.1.0 and BareMux 2.x with a TypeScript Fastify server. The homepage retains the supplied HummingbirdTech logo, custom text and forest-green CSS. It has device-local bookmarks with a hideable bar, fullscreen state control, cosmetic ad hiding and Google default search.
+Scramjet 1.1.0 and BareMux 2.x with a TypeScript Fastify server. Additionally, experimental support for Scramjet 2.X has been added.
 
 ## Render deployment with Tor
 
