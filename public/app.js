@@ -93,7 +93,9 @@ function makeTab(data={}){
   tabs.push(tab);return tab;
 }
 function drawTabs(){
-  const host=$('tabStrip');host.replaceChildren();
+  const host=$('tabStrip');
+  const newTabButton=$('newTab');
+  host.replaceChildren();
   tabs.forEach(tab=>{
     const item=document.createElement('div');item.className='tab'+(tab.id===current?' active':'');
     const pick=document.createElement('button');pick.type='button';pick.className='tab-pick';const icon=document.createElement('span');icon.className='tab-site-icon';
@@ -103,8 +105,7 @@ function drawTabs(){
     const close=document.createElement('button');close.type='button';close.className='tab-close';close.textContent='×';close.title='Close tab';close.setAttribute('aria-label','Close '+tab.title);close.onclick=()=>closeTab(tab.id);
     item.append(pick,close);host.append(item);
   });
-  host.append($('newTab'));
-  $('newTab').disabled=false;
+  if(newTabButton){host.append(newTabButton);newTabButton.disabled=false;}
 }
 function drawBookmarks(){
   $('bookmarkBar').classList.toggle('hidden',!settings.bookmarksVisible);
