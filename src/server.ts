@@ -92,6 +92,10 @@ await app.register(fastifyStatic,{root:libcurlPath,prefix:'/libcurl/',decorateRe
 await app.register(fastifyStatic,{root:epoxyPath,prefix:'/epoxy/',decorateReply:false});
 app.setNotFoundHandler((req,reply)=>{
   const path = new URL(req.url,'http://localhost').pathname;
+  if(path === '/search' || path === '/hummingproxy-iframe.html/search') {
+    reply.header('Cache-Control','no-store');
+    return reply.type('text/html; charset=utf-8').sendFile('index.html');
+  }
   if(path.startsWith('/v2/p/') || path.startsWith('/service/')) {
     reply.code(503).type('text/html; charset=utf-8').header('Cache-Control','no-store');
     return '<!doctype html><html><head><meta charset="utf-8"><title>HummingProxy worker unavailable</title></head><body style="font:16px sans-serif;padding:24px"><h2>Proxy worker did not intercept this page</h2><p>This URL reached the server instead of the proxy service worker. Return to HummingProxy, refresh the page, and check Diagnostics. If you selected Scramjet 2, try Scramjet 1.</p></body></html>';

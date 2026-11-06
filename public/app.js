@@ -1,14 +1,14 @@
 (() => {
 'use strict';
 const $ = id => document.getElementById(id);
-const defaults = {engine:'google',transport:'libcurl',adblock:false,tor:false,bookmarksVisible:true,scramjetVersion:'1',autoFallback:true,theme:'classic',colorA:'#0a2e0a',colorB:'#1a5d1a',accent:'#90e4c1',newTabBackground:'',pageBackground:'',wallpaperDim:30,rounding:12,font:'Segoe UI',motion:true,buttonColor:'#205b35',buttonTextColor:'#e0f7e0',buttonSize:'normal',buttonStyle:'glass',buttonHover:true};
+const defaults = {engine:'google',transport:'libcurl',adblock:false,tor:false,bookmarksVisible:true,scramjetVersion:'1',autoFallback:true,theme:'classic',colorA:'#0a2e0a',colorB:'#1a5d1a',accent:'#90e4c1',newTabBackground:'',pageBackground:'',wallpaperDim:30,rounding:12,font:'Segoe UI',motion:true,buttonColor:'#205b35',buttonTextColor:'#e0f7e0',buttonSize:'normal',buttonStyle:'glass',buttonHover:true,pathSearch:false,chromeMode:false,historyEnabled:false,newTabColor:'#ffffff',customTabTitle:'',customFavicon:''};
 const read = (key, fallback) => {try {return JSON.parse(localStorage.getItem(key)) ?? fallback;} catch {return fallback;}};
 const settings = {...defaults,...read('hummingproxy-settings',{})};
 if (!['google','duckduckgo','firefox'].includes(settings.engine)) settings.engine='google';
 if (!['1','2','static'].includes(settings.scramjetVersion)) settings.scramjetVersion='1';
 if (!['libcurl','epoxy'].includes(settings.transport)) settings.transport='libcurl';
 const persist = () => {try {localStorage.setItem('hummingproxy-settings',JSON.stringify(settings));} catch {}};
-const saveData = () => {try {localStorage.setItem('hummingproxy-bookmarks',JSON.stringify(bookmarks));localStorage.setItem('hummingproxy-tabs',JSON.stringify(tabs.map(t=>({id:t.id,url:t.url,title:t.title,icon:t.icon,history:t.history.slice(-25),index:t.index}))));} catch {}};
+const saveData = () => {try {localStorage.setItem('hummingproxy-bookmarks',JSON.stringify(bookmarks));localStorage.setItem('hummingproxy-tabs',JSON.stringify(tabs.map(t=>({id:t.id,url:t.url,title:t.title,icon:t.icon,history:settings.historyEnabled?t.history.slice(-25):[],index:settings.historyEnabled?t.index:-1}))));} catch {}};
 let bookmarks=read('hummingproxy-bookmarks',[]).filter(x=>x && typeof x.url==='string').slice(0,60);
 let tabs=[], current=null, scramjet=null, mux=null, v2Controller=null, ready=false, torEndpoint='', activeTransport='', loadTimeout=0, booting=false, pendingSearch=null;
 let storedTabs=read('hummingproxy-tabs',[]);
@@ -19,6 +19,12 @@ const hexColor = (value,fallback) => /^#[0-9a-f]{6}$/i.test(value||'')?value:fal
 const safeImage = value => {try {if(!value)return '';const u=new URL(value);return ['https:','http:'].includes(u.protocol)?u.href:'';}catch{return '';}};
 function applyAppearance(){
   const root=document.documentElement;
+  root.classList.toggle('chrome-mode',settings.chromeMode===true);
+  document.title=(String(settings.customTabTitle||'').trim()||'HummingProxy').slice(0,80);
+  let favicon=document.querySelector('link[ data-custom-favicon]');
+  if(!favicon){favicon=document.createElement('link');favicon.rel='icon';favicon.setAttribute('data-custom-favicon','');document.head.append(favicon);}
+  const iconUrl=safeImage(settings.customFavicon);
+  favicon.href=iconUrl||'/favicon.ico';
   root.style.setProperty('--color-a',hexColor(settings.colorA,'#0a2e0a'));
   root.style.setProperty('--color-b',hexColor(settings.colorB,'#1a5d1a'));
   root.style.setProperty('--accent',hexColor(settings.accent,'#90e4c1'));
@@ -51,7 +57,8 @@ function showRecovery(reason){
 }
 function hideRecovery(){if($('recoveryHelp'))$('recoveryHelp').classList.add('hidden');}
 
-const loading = (on, detail='') => {clearTimeout(loadTimeout);$('loader').classList.toggle('hidden',!on);if(detail)$('loadDetail').textContent=detail;if(on)loadTimeout=setTimeout(()=>loading(false),20000);};
+const loading = (on, detail='') => {clearTimeout(loadTimeout);$('loader').classList.toggle('hidden',!on);$('loadProgress').classList.toggle('active',on);if(detail)$('loadDetail').textContent=String(detail).split(/\r?\n/).filter(Boolean).slice(-1)[0]||'';if(on)loadTimeout=setTimeout(()=>loading(false),45000);};
+function setLoadDetail(detail){if(!$('loader').classList.contains('hidden'))$('loadDetail').textContent=String(detail||'').split(/\r?\n/).filter(Boolean).slice(-1)[0]||'';}
 const searchUrls = {google:q=>`https://www.google.com/search?igu=1&q=${encodeURIComponent(q)}`,duckduckgo:q=>`https://duckduckgo.com/?q=${encodeURIComponent(q)}`,firefox:q=>`https://www.google.com/search?igu=1&q=${encodeURIComponent(q)}`};
 function resolveUrl(input) {
   const v=input.trim();
@@ -234,12 +241,12 @@ function ensureFrame(tab){
   tab.frame.frame.classList.toggle('hidden',tab.id!==current);
   tab.frame.frame.classList.add('frame-pending');
   $('frameHost').append(tab.frame.frame);
-  tab.frame.frame.addEventListener('load',()=>{monitorTabMetadata(tab);tab.busy=false;logDiagnostic('iframe load',tab.url);requestAnimationFrame(()=>{tab.frame?.frame.classList.remove('frame-pending');if(current===tab.id){loading(false);status('Frame loaded (page rendering unverified)');}});ads(tab);});
+  tab.frame.frame.addEventListener('load',()=>{monitorTabMetadata(tab);tab.busy=false;logDiagnostic('iframe load',tab.url);setLoadDetail('Page response received');requestAnimationFrame(()=>{tab.frame?.frame.classList.remove('frame-pending');if(current===tab.id){loading(false);status('Frame loaded (page rendering unverified)');}});ads(tab);});
   tab.frame.frame.addEventListener('error',()=>{logDiagnostic('iframe error',tab.url);showRecovery('The embedded page could not load.');});
   tab.frame.addEventListener?.('urlchange',e=>{
     const url=String(e.url||tab.frame.url||'');if(!/^https?:\/\//.test(url))return;
     tab.url=url;tab.title=shortTitle(url);tab.icon='';
-    if(tab.history[tab.index]!==url){tab.history=tab.history.slice(0,tab.index+1);tab.history.push(url);tab.index=tab.history.length-1;}
+    if(settings.historyEnabled&&tab.history[tab.index]!==url){tab.history=tab.history.slice(0,tab.index+1);tab.history.push(url);tab.index=tab.history.length-1;}
     if(current===tab.id)updateUI();saveData();ads(tab);
   });
 }
@@ -251,13 +258,14 @@ async function navigate(input,push=true){
     pendingSearch={input:url,push};$('address').value=input;status('Preparing '+(settings.scramjetVersion==='static'?'Static Scramjet':'Scramjet')+' — your search will open when ready…');return;
   }
   let tab=currentTab();if(!tab||isHomeVisible()){tab=makeTab();current=tab.id;}
-  hideRecovery();loading(true,'the sound of the scramjet and lack of your ear protection instantly destroy your eardrums as you see hummingbirds getting blasted out to search for results…');
+  hideRecovery();loading(true,'Resolving address…');setLoadDetail('Resolving address…');
   try{
-    await switchTransport();ensureFrame(tab);
+    setLoadDetail('Connecting transport…');await switchTransport();setLoadDetail('Preparing browser frame…');ensureFrame(tab);
     tab.url=url;tab.title=shortTitle(url);tab.icon='';tab.busy=true;tab.frame.frame.classList.add('frame-pending');
-    if(push){tab.history=tab.history.slice(0,tab.index+1);tab.history.push(url);tab.index=tab.history.length-1;}
+    if(push&&settings.historyEnabled){tab.history=tab.history.slice(0,tab.index+1);tab.history.push(url);tab.index=tab.history.length-1;}else if(!settings.historyEnabled){tab.history=[];tab.index=-1;}
+    if(settings.pathSearch){const routePath=location.pathname.endsWith('/hummingproxy-iframe.html')?'/hummingproxy-iframe.html/search':'/search';history.replaceState(null,'',routePath+'?q='+encodeURIComponent(input.trim()));}
     $('home').classList.add('hidden');$('browser').classList.remove('hidden');$('emptyTab').classList.add('hidden');updateUI();saveData();
-    logDiagnostic('navigate',url);
+    logDiagnostic('navigate',url);setLoadDetail('Loading '+new URL(url).hostname+'…');
     await tab.frame.go(url);
     trimFrames();
   }catch(e){logDiagnostic('navigation error',e.message||e);loading(false);tab.busy=false;status('Navigation failed: '+String(e.message||e).slice(0,130));showRecovery('Navigation failed: '+(e.message||String(e))+' Try reloading the proxy or switching engines.');}
@@ -292,6 +300,7 @@ function waitForWorker(registration,timeout=18000){
 async function init(){
   if(booting)return;booting=true;
   $('engine').value=settings.engine;$('transport').value=settings.transport;$('adblock').checked=settings.adblock;syncAppearanceControls();
+  $('pathSearch').checked=settings.pathSearch===true;$('chromeMode').checked=settings.chromeMode===true;$('historyEnabled').checked=settings.historyEnabled===true;$('newTabColor').value=settings.newTabColor||'#ffffff';$('customTabTitle').value=settings.customTabTitle||'';$('customFavicon').value=settings.customFavicon||'';
   drawBookmarks();
   $('scramjetVersion').value=settings.scramjetVersion; $('autoFallback').checked=settings.autoFallback!==false;
   if(!tabs.length){current=makeTab().id;updateUI();}
@@ -327,9 +336,10 @@ async function init(){
     if(valid.length){tabs=[];valid.forEach(t=>makeTab(t));current=tabs[0].id;}
     updateUI();
     const params=new URLSearchParams(location.search);
+    const isSearchRoute=location.pathname.endsWith('/search')||location.pathname.endsWith('/hummingproxy-iframe.html/search');
     const query=params.get('q');
-    if(query!==null&&query.trim()){
-      history.replaceState(null,'',location.pathname);
+    if(query!==null&&query.trim()&&(isSearchRoute||settings.pathSearch)){
+      history.replaceState(null,'',location.pathname.replace(/\/search$/,''));
       pendingSearch={input:query,push:true};
     }
     if(pendingSearch){const target=pendingSearch;pendingSearch=null;await navigate(target.input,target.push);}
@@ -447,6 +457,7 @@ $('searchForm').onsubmit=e=>{e.preventDefault();void navigate($('address').value
 $('browserForm').onsubmit=e=>{e.preventDefault();void navigate($('browserAddress').value);};
 $('emptyTabForm').onsubmit=e=>{e.preventDefault();void navigate($('emptyTabAddress').value);};
 $('settingsBtn').onclick=()=>{$('settings').classList.toggle('hidden');refreshTor();};
+$('browserSettings').onclick=()=>{$('settings').classList.toggle('hidden');refreshTor();};
 $('closeSettings').onclick=()=>$('settings').classList.add('hidden');
 
 $('clearSiteData').onclick=async()=>{
@@ -492,6 +503,11 @@ $('clearSiteData').onclick=async()=>{
 };
 
 $('engine').onchange=e=>{settings.engine=e.target.value;persist();};
+$('pathSearch').onchange=e=>{settings.pathSearch=e.target.checked;persist();};
+$('chromeMode').onchange=e=>{settings.chromeMode=e.target.checked;persist();applyAppearance();};
+$('historyEnabled').onchange=e=>{if(e.target.checked&&!confirm('Enable HummingProxy in-app browsing history? Visited URLs may be stored on this device. This does not control network or server-side logs.')){e.target.checked=false;return;}settings.historyEnabled=e.target.checked;if(!settings.historyEnabled){for(const tab of tabs){tab.history=[];tab.index=-1;}}persist();saveData();updateUI();};
+$('customTabTitle').oninput=e=>{settings.customTabTitle=e.target.value.slice(0,80);persist();applyAppearance();};
+$('customFavicon').onchange=e=>{settings.customFavicon=safeImage(e.target.value);e.target.value=settings.customFavicon;persist();applyAppearance();};
 $('autoFallback').onchange=e=>{settings.autoFallback=e.target.checked;persist();};
 $('adblock').onchange=e=>{settings.adblock=e.target.checked;persist();tabs.forEach(ads);};
 $('showBookmarks').onchange=e=>{settings.bookmarksVisible=e.target.checked;persist();drawBookmarks();};
@@ -527,6 +543,9 @@ function home(){
 }
 $('homeBtnTop').onclick=home;$('homeBtn').onclick=home;
 $('newTab').onclick=()=>createTab();
+$('customizeNewTab').onclick=()=>{$('settings').classList.remove('hidden');$('newTabColorLabel').classList.toggle('visible');$('newTabColor').focus();};
+$('newTabColor').oninput=e=>{settings.newTabColor=e.target.value;document.documentElement.style.setProperty('--newtab-color',e.target.value);persist();};
+document.documentElement.style.setProperty('--newtab-color',settings.newTabColor||'#ffffff');
 $('closeBrowserWindow').onclick=()=>home();
 $('openTabs').onclick=()=>{if(!tabs.length){createTab();return;}activate(current&&tabs.some(t=>t.id===current)?current:tabs[0].id);};
 $('bookmarkToggle').onclick=()=>{

@@ -48,6 +48,7 @@
             <input id="browserAddress" type="text" autocomplete="off" spellcheck="false" aria-label="Browser address">
             <button type="submit">Go</button>
           </form>
+          <button id="browserSettings" type="button" title="Settings">⚙</button>
           <button id="bookmarkToggle" type="button" title="Bookmark this page">☆</button>
           <button id="expand" type="button" title="Fullscreen">⛶</button>
         </nav>
@@ -56,6 +57,7 @@
         <div id="emptyTab" class="empty-tab hidden">
           <div class="empty-tab-content">
             <h2>New tab</h2>
+            <div class="newtab-customize"><button id="customizeNewTab" type="button">Customize Chrome</button><label id="newTabColorLabel" title="New-tab color">Color <input id="newTabColor" type="color" value="#ffffff"></label></div>
             <form id="emptyTabForm" class="empty-tab-form">
               <input id="emptyTabAddress" type="text" autocomplete="off" spellcheck="false" placeholder="Search Google or enter a URL" aria-label="Search in new tab">
               <button type="submit">Search</button>
@@ -74,6 +76,11 @@
     </aside>
     <aside id="settings" class="settings-panel hidden">
       <div class="settings-head"><h2>Settings</h2><button id="closeSettings" type="button">×</button></div>
+      <label class="toggle"><span>Use /search?q= in the browser address bar<small>Opt-in URL mode; off by default. Also supports /hummingproxy-iframe.html/search?q= when embedded.</small></span><input id="pathSearch" type="checkbox"></label>
+      <label class="toggle"><span>Chrome mode<small>Use a Chrome-like full-window browser appearance.</small></span><input id="chromeMode" type="checkbox"></label>
+      <label class="toggle"><span>Save in-app browsing history<small>Off by default. Enabling asks for confirmation. This only controls history stored by HummingProxy; it cannot control network or server logs.</small></span><input id="historyEnabled" type="checkbox"></label>
+      <label class="field">Browser tab title<input id="customTabTitle" type="text" maxlength="80" placeholder="HummingProxy"></label>
+      <label class="field">Browser tab favicon URL<input id="customFavicon" type="url" placeholder="https://example.com/favicon.ico"></label>
       <label class="field">Search engine<select id="engine"><option value="duckduckgo">DuckDuckGo</option><option value="google" selected>Google</option><option value="firefox">Firefox (Google results)</option></select></label>
       <label class="field">Scramjet version<select id="scramjetVersion"><option value="1" selected>Scramjet 1 (default)</option><option value="2">Scramjet 2 (experimental)</option><option value="static">Static Scramjet</option></select></label>
       <label class="toggle"><span>Automatically use Scramjet 2 if Scramjet 1 fails<small>Disable to see the original startup error instead</small></span><input id="autoFallback" type="checkbox" checked></label>
@@ -115,6 +122,7 @@
     <div class="loader hidden" id="loader" role="status" aria-live="polite">
       <div class="loading-bird" aria-hidden="true"><img src="https://uploads.onecompiler.io/447kr4gf2/44f9wbztv/humming%5Bbird%5DTech%20logo%20%285%29.png" alt=""></div>
       <p>our hummingbird army is looking for relevant sites</p>
+      <div id="loadProgress" class="load-progress" aria-hidden="true"><span></span></div>
       <small id="loadDetail">Connecting…</small>
       <button type="button" id="cancelLoad">Cancel</button>
     </div>
