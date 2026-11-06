@@ -148,40 +148,30 @@ button:not(:disabled){color:var(--button-text)}
 .home:not(.hidden){position:relative;z-index:2;pointer-events:auto}
 .browser.hidden{display:none!important;pointer-events:none!important}
 
-/* Chrome mode uses the active HummingProxy theme; it changes the browser layout, not the page to a white theme. */
 .load-progress{display:block;width:min(460px,88vw);height:5px;margin:16px 0 10px;border:0;border-radius:8px;overflow:hidden;background:#ffffff28;opacity:0;transition:opacity .18s ease}
 .load-progress.active{opacity:1}
 .load-progress::-webkit-progress-bar{background:#ffffff28;border-radius:8px}
 .load-progress::-webkit-progress-value{background:var(--accent,#90e4c1);border-radius:8px;transition:width .2s ease}
 .load-progress::-moz-progress-bar{background:var(--accent,#90e4c1);border-radius:8px}
-.chrome-mode body{padding:0;justify-content:flex-start;align-items:stretch;background:linear-gradient(135deg,var(--color-a),var(--color-b));color:#f4fff5;text-align:left}
-.chrome-mode .shell{min-height:100vh;justify-content:flex-start;align-items:stretch}
-.chrome-mode main{justify-content:flex-start;align-items:stretch}
-.chrome-mode .browser{width:100%;height:100vh;min-height:100vh;border:0;border-radius:0;padding:0;background:var(--color-a)}
-.chrome-mode .tabs-header{background:color-mix(in srgb,var(--color-a) 72%,#000);padding:7px 8px 0;border-radius:0;min-height:42px}
-.chrome-mode .tab{background:color-mix(in srgb,var(--color-b) 55%,var(--color-a));border-color:#ffffff30;border-radius:9px 9px 0 0}
-.chrome-mode .tab.active{background:color-mix(in srgb,var(--color-b) 82%,var(--color-a));border-color:var(--accent)}
-.chrome-mode .tab .tab-pick,.chrome-mode .tab .tab-close{color:#f4fff5}
-.chrome-mode .tabs-header #newTab,.chrome-mode #closeBrowserWindow{color:#f4fff5;background:transparent;box-shadow:none;border:0}
-.chrome-mode .viewport-navbar{background:color-mix(in srgb,var(--color-a) 84%,#000);border-bottom:1px solid #ffffff24;padding:9px 12px;gap:8px}
-.chrome-mode .viewport-controls button,.chrome-mode .viewport-navbar>button,.chrome-mode .browser-form button{color:#f4fff5;background:#ffffff16;border:1px solid #ffffff20;box-shadow:none;border-radius:20px;padding:8px 13px}
-.chrome-mode .browser-form input{color:#f4fff5;background:#ffffff12;border:1px solid #ffffff55;border-radius:22px;padding:11px 18px}
-.chrome-mode .bookmark-bar{background:color-mix(in srgb,var(--color-a) 78%,#000);color:#d6efdc;border-bottom:1px solid #ffffff20}
-.chrome-mode .bookmark-heading{color:#c6e6ce}
-.chrome-mode .bookmark-items .bookmark-link{color:#f4fff5;background:#ffffff12;box-shadow:none}
-.chrome-mode .settings-panel{background:color-mix(in srgb,var(--color-a) 86%,#000);color:#f4fff5;border:1px solid var(--accent);box-shadow:0 5px 25px #0008;backdrop-filter:blur(12px)}
-.chrome-mode .settings-head h2,.chrome-mode .settings-note,.chrome-mode .toggle small{color:#c6e6ce}
-.chrome-mode .settings-panel .field select,.chrome-mode .settings-panel input[type="url"],.chrome-mode .settings-panel input[type="text"]{background:#102b18;color:#f4fff5;border-color:#6c9b78}
-.chrome-mode .settings-panel button{background:#ffffff18;color:#f4fff5;border-color:#ffffff38}
-.chrome-mode .empty-tab{background-color:var(--color-a);color:#f4fff5}
-.chrome-mode .empty-tab-form input{background:#ffffff16;color:#f4fff5;border-color:var(--accent)}
-.chrome-mode .top-button-container,.chrome-mode footer{display:none}
-.chrome-mode .utility-controls-container{display:none}
-.chrome-mode #browserSettings{display:inline-flex}
-.chrome-mode .loader{background:color-mix(in srgb,var(--color-a) 88%,#000);color:#f4fff5}
-.chrome-mode .loader small{color:#c6e6ce}
-.chrome-mode .load-progress::-webkit-progress-bar{background:#ffffff28}
-.chrome-mode .load-progress::-webkit-progress-value{background:var(--accent,#90e4c1)}
-.chrome-mode .load-progress::-moz-progress-bar{background:var(--accent,#90e4c1)}
-.customize-chrome{display:none;position:absolute;right:18px;bottom:16px;z-index:5;align-items:center;gap:8px;min-width:0;margin:0;padding:9px 16px;border:1px solid #ffffff35;border-radius:24px;background:#173b27;color:#e8f8e9;font-size:13px;box-shadow:0 2px 10px #0004;backdrop-filter:blur(10px)}
-.chrome-mode #customizeChrome{display:inline-flex}
+/* Proxy-only layout: an unadorned iframe canvas with only Settings and Diagnostics accessible. */
+html.proxy-only, html.proxy-only body { width:100%; min-height:100%; margin:0; padding:0; background:transparent!important; animation:none!important; }
+html.proxy-only body { display:block; color:inherit; text-align:left; }
+html.proxy-only .shell { display:flex; width:100%; min-height:100vh; align-items:stretch; justify-content:flex-start; }
+html.proxy-only main { display:flex; width:100%; min-height:100vh; flex:1; align-items:stretch; justify-content:flex-start; }
+html.proxy-only .top-button-container, html.proxy-only footer, html.proxy-only .home,
+html.proxy-only .tabs-header, html.proxy-only .viewport-navbar, html.proxy-only .bookmark-bar,
+html.proxy-only #emptyTab { display:none!important; }
+html.proxy-only .utility-controls-container { position:fixed; top:8px; right:8px; z-index:100; display:flex; gap:6px; padding:0; background:transparent; }
+html.proxy-only #status { display:none!important; }
+html.proxy-only .utility-controls-container button { min-width:0; margin:0; padding:6px 10px; font-size:12px; border-radius:8px; }
+html.proxy-only .browser, html.proxy-only .browser:not(.hidden) { display:flex; width:100vw; height:100vh; height:100dvh; min-height:100vh; min-height:100dvh; padding:0; border:0; border-radius:0; background:transparent; overflow:hidden; }
+html.proxy-only .iframe-sandbox-container { width:100%; height:100%; min-height:0; flex:1; background:transparent; }
+html.proxy-only .iframe-sandbox-container iframe { display:block; width:100%; height:100%; border:0; }
+html.proxy-only .loader { position:fixed; inset:0 0 auto; height:4px; padding:0; overflow:hidden; background:transparent!important; pointer-events:none; }
+html.proxy-only .loader > *:not(.load-progress) { display:none!important; }
+html.proxy-only .load-progress { width:100%; height:4px; margin:0; border-radius:0; }
+.custom-search-setting { margin:14px 0 20px; padding:12px; border:1px solid #ffffff30; border-radius:12px; background:#00000020; }
+.custom-search-setting .field { margin-top:0; }
+.custom-search-setting input { width:100%; min-width:0; padding:9px; color:#fff; background:#102b18; border:1px solid #6c9b78; border-radius:8px; }
+.custom-search-setting button { min-width:0; padding:9px 14px; margin:4px 0 8px; font-size:13px; }
+.custom-search-setting small { display:block; color:#c1dac7; font-size:11px; line-height:1.5; }

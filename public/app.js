@@ -1,9 +1,10 @@
 (() => {
 'use strict';
 const $ = id => document.getElementById(id);
-const defaults = {engine:'google',transport:'libcurl',adblock:false,tor:false,bookmarksVisible:true,scramjetVersion:'2',autoFallback:true,theme:'classic',colorA:'#0a2e0a',colorB:'#1a5d1a',accent:'#90e4c1',newTabBackground:'',pageBackground:'',wallpaperDim:30,rounding:12,font:'Segoe UI',motion:true,buttonColor:'#205b35',buttonTextColor:'#e0f7e0',buttonSize:'normal',buttonStyle:'glass',buttonHover:true,pathSearch:false,chromeMode:false,historyEnabled:false,customTabTitle:'',customFavicon:''};
+const defaults = {engine:'google',transport:'libcurl',adblock:false,tor:false,bookmarksVisible:true,scramjetVersion:'2',autoFallback:true,theme:'classic',colorA:'#0a2e0a',colorB:'#1a5d1a',accent:'#90e4c1',newTabBackground:'',pageBackground:'',wallpaperDim:30,rounding:12,font:'Segoe UI',motion:true,buttonColor:'#205b35',buttonTextColor:'#e0f7e0',buttonSize:'normal',buttonStyle:'glass',buttonHover:true,pathSearch:false,proxyOnly:false,historyEnabled:false,customTabTitle:'',customFavicon:''};
 const read = (key, fallback) => {try {return JSON.parse(localStorage.getItem(key)) ?? fallback;} catch {return fallback;}};
 const settings = {...defaults,...read('hummingproxy-settings',{})};
+delete settings.chromeMode; // Chrome mode has been retired.
 const migrateScramjetDefault = !read('hummingproxy-sj2-default-migrated',false);
 if (!['google','duckduckgo','firefox'].includes(settings.engine)) settings.engine='google';
 if (migrateScramjetDefault) { settings.scramjetVersion='2'; try { localStorage.setItem('hummingproxy-sj2-default-migrated','true'); } catch {} }
@@ -22,7 +23,7 @@ const hexColor = (value,fallback) => /^#[0-9a-f]{6}$/i.test(value||'')?value:fal
 const safeImage = value => {try {if(!value)return '';const u=new URL(value);return ['https:','http:'].includes(u.protocol)?u.href:'';}catch{return '';}};
 function applyAppearance(){
   const root=document.documentElement;
-  root.classList.toggle('chrome-mode',settings.chromeMode===true);
+  root.classList.toggle('proxy-only',settings.proxyOnly===true);
   document.title=(String(settings.customTabTitle||'').trim()||'HummingProxy').slice(0,80);
   let favicon=document.querySelector('link[ data-custom-favicon]');
   if(!favicon){favicon=document.createElement('link');favicon.rel='icon';favicon.setAttribute('data-custom-favicon','');document.head.append(favicon);}
@@ -77,6 +78,7 @@ function setLoadPhase(percent,detail=''){
   if(detail)setLoadDetail(detail);
 }
 const searchUrls = {google:q=>`https://www.google.com/search?igu=1&q=${encodeURIComponent(q)}`,duckduckgo:q=>`https://duckduckgo.com/?q=${encodeURIComponent(q)}`,firefox:q=>`https://www.google.com/search?igu=1&q=${encodeURIComponent(q)}`};
+function updateCustomSearchUrl(){const input=$('customSearchUrl');if(input)input.value=location.origin+'/search?q=%s';}
 function resolveUrl(input) {
   const v=input.trim();
   if(!v)return '';
@@ -284,7 +286,8 @@ async function navigate(input,push=true){
     if(setupFailed){status('Proxy not ready: '+setupFailed);showRecovery('The selected engine failed to start: '+setupFailed+' Try another Scramjet version in Settings or reload.');return;}
     pendingSearch={input:url,push};$('address').value=input;status('Preparing '+(runtimeEngine==='static'?'Static Scramjet':'Scramjet '+(runtimeEngine||settings.scramjetVersion))+' — your search will open when ready…');return;
   }
-  let tab=currentTab();if(!tab||isHomeVisible()){tab=makeTab();current=tab.id;}
+  if(settings.proxyOnly){$('home').classList.add('hidden');$('browser').classList.remove('hidden');}
+  let tab=currentTab();if(!tab||(isHomeVisible()&&!settings.proxyOnly)){tab=makeTab();current=tab.id;}
   hideRecovery();loading(true,'Resolving address…');setLoadPhase(12,'Resolving address…');
   try{
     setLoadPhase(27,'Connecting proxy transport…');await switchTransport();setLoadPhase(43,'Preparing browser frame…');ensureFrame(tab);
@@ -327,7 +330,7 @@ function waitForWorker(registration,timeout=18000){
 async function init(){
   if(booting)return;booting=true;
   $('engine').value=settings.engine;$('transport').value=settings.transport;$('adblock').checked=settings.adblock;syncAppearanceControls();
-  $('pathSearch').checked=settings.pathSearch===true;$('chromeMode').checked=settings.chromeMode===true;$('historyEnabled').checked=settings.historyEnabled===true;$('customTabTitle').value=settings.customTabTitle||'';$('customFavicon').value=settings.customFavicon||'';
+  $('pathSearch').checked=settings.pathSearch===true;$('proxyOnly').checked=settings.proxyOnly===true;$('historyEnabled').checked=settings.historyEnabled===true;updateCustomSearchUrl();$('customTabTitle').value=settings.customTabTitle||'';$('customFavicon').value=settings.customFavicon||'';
   drawBookmarks();
   $('scramjetVersion').value=settings.scramjetVersion; $('autoFallback').checked=settings.autoFallback!==false;
   if(!tabs.length){current=makeTab().id;updateUI();}
@@ -469,6 +472,8 @@ async function diagnosticsText(){
     'Time: '+new Date().toISOString(),
     'Browser: '+navigator.userAgent,
     'Origin: '+location.origin,
+    'Proxy-only mode: '+Boolean(settings.proxyOnly),
+    'Custom search URL: '+location.origin+'/search?q=%s',
     'Embedded: '+(window.top!==window),
     'Secure context: '+window.isSecureContext,
     'Preferred engine: Scramjet '+settings.scramjetVersion+(settings.scramjetVersion==='2'?' (default)':''),
@@ -509,8 +514,9 @@ $('recoveryRetry').onclick=()=>location.reload();
 $('searchForm').onsubmit=e=>{e.preventDefault();void navigate($('address').value);};
 $('browserForm').onsubmit=e=>{e.preventDefault();void navigate($('browserAddress').value);};
 $('emptyTabForm').onsubmit=e=>{e.preventDefault();void navigate($('emptyTabAddress').value);};
-$('settingsBtn').onclick=()=>{$('settings').classList.toggle('hidden');refreshTor();};
-$('browserSettings').onclick=()=>{$('settings').classList.toggle('hidden');refreshTor();};
+$('settingsBtn').onclick=()=>{$('settings').classList.toggle('hidden');updateCustomSearchUrl();refreshTor();};
+$('copySearchUrl').onclick=async()=>{updateCustomSearchUrl();const value=$('customSearchUrl').value;try{await navigator.clipboard.writeText(value);status('Custom search URL copied');}catch{const field=$('customSearchUrl');field.focus();field.select();try{document.execCommand('copy');status('Custom search URL copied');}catch{status('Select and copy the search URL manually');}}};
+$('browserSettings').onclick=()=>{$('settings').classList.toggle('hidden');updateCustomSearchUrl();refreshTor();};
 $('closeSettings').onclick=()=>$('settings').classList.add('hidden');
 
 $('clearSiteData').onclick=async()=>{
@@ -557,7 +563,11 @@ $('clearSiteData').onclick=async()=>{
 
 $('engine').onchange=e=>{settings.engine=e.target.value;persist();};
 $('pathSearch').onchange=e=>{settings.pathSearch=e.target.checked;persist();};
-$('chromeMode').onchange=e=>{settings.chromeMode=e.target.checked;persist();applyAppearance();};
+$('proxyOnly').onchange=e=>{
+  settings.proxyOnly=e.target.checked;persist();applyAppearance();
+  if(settings.proxyOnly){$('home').classList.add('hidden');$('browser').classList.remove('hidden');$('emptyTab').classList.add('hidden');}
+  else if(!currentTab()?.url&&!currentTab()?.frame){$('browser').classList.add('hidden');$('home').classList.remove('hidden');}
+};
 $('historyEnabled').onchange=e=>{if(e.target.checked&&!confirm('Enable HummingProxy in-app browsing history? Visited URLs may be stored on this device. This does not control network or server-side logs.')){e.target.checked=false;return;}settings.historyEnabled=e.target.checked;if(!settings.historyEnabled){for(const tab of tabs){tab.history=[];tab.index=-1;}}persist();saveData();updateUI();};
 $('customTabTitle').oninput=e=>{settings.customTabTitle=e.target.value.slice(0,80);persist();applyAppearance();};
 $('customFavicon').onchange=e=>{settings.customFavicon=safeImage(e.target.value);e.target.value=settings.customFavicon;persist();applyAppearance();};
@@ -584,25 +594,24 @@ $('transport').onchange=e=>changeRoute('transport',e.target.value);
 $('tor').onchange=e=>changeRoute('tor',e.target.checked);
 function home(){
   loading(false);
-  $('browser').classList.add('hidden');
-  $('home').classList.remove('hidden');
   $('settings').classList.add('hidden');
   $('diagnosticsPanel').classList.add('hidden');
   hideRecovery();
   for(const tab of tabs)if(tab.frame?.frame){tab.frame.frame.classList.add('hidden');tab.frame.frame.style.pointerEvents='none';}
-  $('home').style.pointerEvents='auto';
+  if(settings.proxyOnly){
+    $('home').classList.add('hidden');
+    $('browser').classList.remove('hidden');
+    $('emptyTab').classList.add('hidden');
+  }else{
+    $('browser').classList.add('hidden');
+    $('home').classList.remove('hidden');
+    $('home').style.pointerEvents='auto';
+  }
   $('address').disabled=false;
   $('go').disabled=false;
 }
 $('homeBtnTop').onclick=home;$('homeBtn').onclick=home;
 $('newTab').onclick=()=>createTab();
-$('customizeChrome').onclick=()=>{
-  $('settings').classList.remove('hidden');
-  const appearance=$('settings').querySelector('.appearance-options');
-  if(appearance)appearance.open=true;
-  $('settings').scrollTop=0;
-  refreshTor();
-};
 $('closeBrowserWindow').onclick=()=>home();
 $('openTabs').onclick=()=>{if(!tabs.length){createTab();return;}activate(current&&tabs.some(t=>t.id===current)?current:tabs[0].id);};
 $('bookmarkToggle').onclick=()=>{

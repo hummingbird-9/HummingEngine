@@ -34,8 +34,10 @@ Public Wisp endpoints can be abused. Do not share a public deployment widely wit
 
 Settings → Scramjet version switches between the default stable 1.x and experimental 2.x. Changing engines reloads the shell and existing open frames; saved tab addresses and bookmarks are retained. Version 2 is installed into an isolated `v2/node_modules` directory during `npm run build`, because its transport majors and controller are incompatible with 1.x. Its worker only controls `/v2/` paths. The build needs npm registry access. Version 2 has not been end-to-end browser-tested in this release.
 
-## Custom search engine
+## Custom search engine and proxy-only layout
 
-In Chrome Settings → Search engine → Manage search engines and site search → Add, set Search engine to `HummingProxy`, shortcut to `hp`, URL with %s to `https://hummingproxy.onrender.com/?q=%s`. Chrome may offer `Make default` in the row menu; school-managed browsers may prohibit this. The proxy loads your configured search engine after startup. This does not make Google use HummingProxy automatically.
+In HummingProxy Settings, enable **Proxy-only mode** to remove the home screen, tab strip, browser toolbar, bookmark bar and HummingProxy page background. The proxied page fills the window, while the Settings and Diagnostics buttons remain available. Disable this option to return to the full HummingProxy interface.
+
+The same Settings panel shows the current **Chrome custom search URL** and has a copy button. In Chrome, open Settings → Search engine → Manage search engines and site search → Add. Use `HummingProxy` as the name, `hp` as the shortcut, and paste the copied URL (it uses `/search?q=%s`). This URL is served by the app's `/search` route and can be used independently of the optional address-bar path-search setting. Managed Chrome profiles may restrict custom search engines.
 
 There is no application tab limit. Tabs shrink to 42px and then scroll horizontally; device RAM remains the practical limit.

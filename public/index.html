@@ -5,9 +5,9 @@
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <meta name="theme-color" content="#0a2e0a">
   <title>HummingProxy</title>
-  <link rel="stylesheet" href="/style.css?v=chrome-mode-sj2-progress-1">
+  <link rel="stylesheet" href="/style.css?v=proxy-only-sj2-progress-2">
   <script src="/scram/scramjet.all.js" defer></script>
-  <script src="/app.js?v=chrome-mode-sj2-progress-1" defer></script>
+  <script src="/app.js?v=proxy-only-sj2-progress-2" defer></script>
 </head>
 <body>
   <div class="shell">
@@ -57,7 +57,6 @@
         <div id="emptyTab" class="empty-tab hidden">
           <div class="empty-tab-content">
             <h2>New tab</h2>
-            <button id="customizeChrome" class="customize-chrome" type="button">✎ Customize Chrome</button>
             <form id="emptyTabForm" class="empty-tab-form">
               <input id="emptyTabAddress" type="text" autocomplete="off" spellcheck="false" placeholder="Search Google or enter a URL" aria-label="Search in new tab">
               <button type="submit">Search</button>
@@ -77,7 +76,12 @@
     <aside id="settings" class="settings-panel hidden">
       <div class="settings-head"><h2>Settings</h2><button id="closeSettings" type="button">×</button></div>
       <label class="toggle"><span>Use /search?q= in the browser address bar<small>Opt-in URL mode; off by default. Also supports /hummingproxy-iframe.html/search?q= when embedded.</small></span><input id="pathSearch" type="checkbox"></label>
-      <label class="toggle"><span>Chrome mode<small>Use a Chrome-like full-window browser appearance.</small></span><input id="chromeMode" type="checkbox"></label>
+      <label class="toggle"><span>Proxy-only mode<small>Hide the home screen, tabs, browser controls, bookmarks and page background. Keep Settings and Diagnostics available. The proxy content fills the window.</small></span><input id="proxyOnly" type="checkbox"></label>
+      <div class="custom-search-setting">
+        <label class="field">Chrome custom search URL<input id="customSearchUrl" type="text" readonly spellcheck="false"></label>
+        <button id="copySearchUrl" type="button">Copy search URL</button>
+        <small>In Chrome, open Settings → Search engine → Manage search engines → Add. Use HummingProxy as the name, hp as the shortcut, and paste this URL. The %s placeholder is replaced by your search.</small>
+      </div>
       <label class="toggle"><span>Save in-app browsing history<small>Off by default. Enabling asks for confirmation. This only controls history stored by HummingProxy; it cannot control network or server logs.</small></span><input id="historyEnabled" type="checkbox"></label>
       <label class="field">Browser tab title<input id="customTabTitle" type="text" maxlength="80" placeholder="HummingProxy"></label>
       <label class="field">Browser tab favicon URL<input id="customFavicon" type="url" placeholder="https://example.com/favicon.ico"></label>
