@@ -5,9 +5,9 @@
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <meta name="theme-color" content="#0a2e0a">
   <title>HummingProxy</title>
-  <link rel="stylesheet" href="/style.css?v=proxy-only-sj2-progress-2">
+  <link rel="stylesheet" href="/style.css?v=generic-iframe-search-3">
   <script src="/scram/scramjet.all.js" defer></script>
-  <script src="/app.js?v=proxy-only-sj2-progress-2" defer></script>
+  <script src="/app.js?v=generic-iframe-search-3" defer></script>
 </head>
 <body>
   <div class="shell">
@@ -75,14 +75,14 @@
     </aside>
     <aside id="settings" class="settings-panel hidden">
       <div class="settings-head"><h2>Settings</h2><button id="closeSettings" type="button">×</button></div>
-      <label class="toggle"><span>Use /search?q= in the browser address bar<small>Opt-in URL mode; off by default. Also supports /hummingproxy-iframe.html/search?q= when embedded.</small></span><input id="pathSearch" type="checkbox"></label>
+      <label class="toggle"><span>Use /search?q= in the browser address bar<small>Opt-in address-bar URL mode; off by default. Embedded pages also accept /search?q= on their current iframe entry path.</small></span><input id="pathSearch" type="checkbox"></label>
       <label class="toggle"><span>Proxy-only mode<small>Hide the home screen, tabs, browser controls, bookmarks and page background. Keep Settings and Diagnostics available. The proxy content fills the window.</small></span><input id="proxyOnly" type="checkbox"></label>
       <div class="custom-search-setting">
         <label class="field">Chrome custom search URL<input id="customSearchUrl" type="text" readonly spellcheck="false"></label>
         <button id="copySearchUrl" type="button">Copy search URL</button>
         <label class="field">Iframe search URL<input id="iframeSearchUrl" type="text" readonly spellcheck="false"></label>
         <button id="copyIframeSearchUrl" type="button">Copy iframe search URL</button>
-        <small>Use the iframe URL when the proxy is embedded in another page. It accepts searches at /hummingproxy-iframe.html/search?q= and also supports the no-hyphen /hummingproxyiframe.html alias. The %s placeholder is replaced by your search.</small>
+        <small>Use this URL for the iframe entry path currently hosting HummingProxy. The path is not tied to a particular filename: any iframe entry can accept /search?q=. The %s placeholder is replaced by your search. The hosting domain must serve or reverse-proxy HummingProxy.</small>
         <small>In Chrome, open Settings → Search engine → Manage search engines → Add. Use HummingProxy as the name, hp as the shortcut, and paste the regular search URL.</small>
       </div>
       <label class="toggle"><span>Save in-app browsing history<small>Off by default. Enabling asks for confirmation. This only controls history stored by HummingProxy; it cannot control network or server logs.</small></span><input id="historyEnabled" type="checkbox"></label>

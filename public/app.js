@@ -79,14 +79,19 @@ function setLoadPhase(percent,detail=''){
 }
 const searchUrls = {google:q=>`https://www.google.com/search?igu=1&q=${encodeURIComponent(q)}`,duckduckgo:q=>`https://duckduckgo.com/?q=${encodeURIComponent(q)}`,firefox:q=>`https://www.google.com/search?igu=1&q=${encodeURIComponent(q)}`};
 function iframeEntryBase(pathname=location.pathname){
-  const match=pathname.match(/^(.*\/hummingproxy-?iframe\.html)(?:\/search)?\/?$/i);
-  return match?match[1]:'';
+  // If already on a /search route, strip only that suffix. Otherwise, when
+  // embedded, treat the current document path as the iframe's own entry path.
+  const searchMatch=pathname.match(/^(.*)\/search\/?$/i);
+  if(searchMatch)return searchMatch[1]||'';
+  if(window.top!==window)return pathname==='/'?'':pathname.replace(/\/+$/,'');
+  // Also allow a custom HTML entry filename when the app is opened directly.
+  return /\.html?$/i.test(pathname)?pathname.replace(/\/+$/,''):'';
 }
 function searchRoutePath(){const base=iframeEntryBase();return base?base+'/search':'/search';}
-function isSearchEntryPath(pathname=location.pathname){return pathname==='/search'||/\/hummingproxy-?iframe\.html\/search\/?$/i.test(pathname);}
+function isSearchEntryPath(pathname=location.pathname){return /(?:^|\/)search\/?$/i.test(pathname);}
 function updateCustomSearchUrl(){
   const input=$('customSearchUrl');if(input)input.value=location.origin+'/search?q=%s';
-  const iframeInput=$('iframeSearchUrl');if(iframeInput)iframeInput.value=location.origin+'/hummingproxy-iframe.html/search?q=%s';
+  const iframeInput=$('iframeSearchUrl');if(iframeInput)iframeInput.value=location.origin+searchRoutePath()+'?q=%s';
 }
 function resolveUrl(input) {
   const v=input.trim();
@@ -385,9 +390,10 @@ async function init(){
     const params=new URLSearchParams(location.search);
     const pathname=location.pathname;
     const isSearchRoute=isSearchEntryPath(pathname);
+    const isEmbedded=window.top!==window;
     const iframeBase=iframeEntryBase(pathname);
     const query=params.get('q');
-    if(query!==null&&query.trim()&&(isSearchRoute||iframeBase||settings.pathSearch)){
+    if(query!==null&&query.trim()&&(isSearchRoute||isEmbedded||iframeBase||settings.pathSearch)){
       const cleanPath=iframeBase||(pathname.replace(/\/search\/?$/i,'')||'/');
       history.replaceState(null,'',cleanPath+location.hash);
       pendingSearch={input:query,push:true};

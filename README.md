@@ -46,7 +46,6 @@ There is no application tab limit. Tabs shrink to 42px and then scroll horizonta
 ### Search endpoints, including iframe embedding
 
 - Top-level search: `/search?q=%s`
-- Iframe search: `/hummingproxy-iframe.html/search?q=%s`
-- Compatibility alias: `/hummingproxyiframe.html/search?q=%s`
+- Embedded search: append `/search?q=%s` to the HummingProxy iframe's current entry path, whatever that path is (for example, `/any-name.html/search?q=%s`).
 
-The iframe endpoint serves the HummingProxy app shell and forwards the decoded `q` value into the configured search engine/proxy. It also works behind a URL path prefix when the same server is mounted below a subpath. When embedding, set the iframe `src` to the HummingProxy-hosted URL; a path on an unrelated parent-site domain will only work if that domain proxies the request to this server.
+The iframe route is path-agnostic; it does not require a filename such as `hummingproxy-iframe.html`. The server serves the app shell for iframe document requests, HTML entry paths, and any unmatched path ending in `/search`. The client reads `q` when embedded and preserves the iframe entry path when generating the iframe search URL. If you use a custom domain such as `example.com`, that domain must host HummingProxy or reverse-proxy those requests to the HummingProxy server; an iframe's parent-page URL alone does not route requests to another origin.

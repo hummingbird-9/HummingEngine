@@ -72,7 +72,8 @@ const app = Fastify({
   })
 });
 app.addHook('onSend',async(req,reply,payload)=>{
-  if(/^\/(?:|index\.html|sw\.js|app\.js|api\/config)$/.test(new URL(req.url,'http://localhost').pathname)||/(?:^|\/)hummingproxy-?iframe\.html(?:\/search)?\/?$/i.test(new URL(req.url,'http://localhost').pathname)||new URL(req.url,'http://localhost').pathname==='/search')reply.header('Cache-Control','no-store,max-age=0');
+  const pathname = new URL(req.url,'http://localhost').pathname;
+  if(/^\/(?:|index\.html|sw\.js|app\.js|api\/config)$/.test(pathname)||/(?:^|\/)search\/?$/i.test(pathname)||/\.html?$/i.test(pathname))reply.header('Cache-Control','no-store,max-age=0');
   return payload;
 });
 app.get('/health',async()=>({ok:true,app:'HummingProxy'}));
@@ -92,8 +93,12 @@ await app.register(fastifyStatic,{root:libcurlPath,prefix:'/libcurl/',decorateRe
 await app.register(fastifyStatic,{root:epoxyPath,prefix:'/epoxy/',decorateReply:false});
 app.setNotFoundHandler((req,reply)=>{
   const path = new URL(req.url,'http://localhost').pathname;
-  const iframeEntry = /(?:^|\/)hummingproxy-?iframe\.html(?:\/search)?\/?$/i.test(path);
-  if(path === '/search' || iframeEntry) {
+  // Any unmatched HTML/iframe entry can host the app shell. The /search suffix
+  // is intentionally path-agnostic so an embedder can use its own entry path.
+  const searchRoute = /(?:^|\/)search\/?$/i.test(path);
+  const iframeRequest = req.headers['sec-fetch-dest'] === 'iframe';
+  const htmlEntry = /\.html?$/i.test(path);
+  if(req.method === 'GET' && (searchRoute || iframeRequest || htmlEntry)) {
     reply.header('Cache-Control','no-store');
     return reply.type('text/html; charset=utf-8').sendFile('index.html');
   }
