@@ -1,19 +1,22 @@
 (() => {
 'use strict';
 const $ = id => document.getElementById(id);
-const defaults = {engine:'google',transport:'libcurl',adblock:false,tor:false,bookmarksVisible:true,scramjetVersion:'1',autoFallback:true,theme:'classic',colorA:'#0a2e0a',colorB:'#1a5d1a',accent:'#90e4c1',newTabBackground:'',pageBackground:'',wallpaperDim:30,rounding:12,font:'Segoe UI',motion:true,buttonColor:'#205b35',buttonTextColor:'#e0f7e0',buttonSize:'normal',buttonStyle:'glass',buttonHover:true,pathSearch:false,chromeMode:false,historyEnabled:false,newTabColor:'#ffffff',customTabTitle:'',customFavicon:''};
+const defaults = {engine:'google',transport:'libcurl',adblock:false,tor:false,bookmarksVisible:true,scramjetVersion:'2',autoFallback:true,theme:'classic',colorA:'#0a2e0a',colorB:'#1a5d1a',accent:'#90e4c1',newTabBackground:'',pageBackground:'',wallpaperDim:30,rounding:12,font:'Segoe UI',motion:true,buttonColor:'#205b35',buttonTextColor:'#e0f7e0',buttonSize:'normal',buttonStyle:'glass',buttonHover:true,pathSearch:false,chromeMode:false,historyEnabled:false,customTabTitle:'',customFavicon:''};
 const read = (key, fallback) => {try {return JSON.parse(localStorage.getItem(key)) ?? fallback;} catch {return fallback;}};
 const settings = {...defaults,...read('hummingproxy-settings',{})};
+const migrateScramjetDefault = !read('hummingproxy-sj2-default-migrated',false);
 if (!['google','duckduckgo','firefox'].includes(settings.engine)) settings.engine='google';
-if (!['1','2','static'].includes(settings.scramjetVersion)) settings.scramjetVersion='1';
+if (migrateScramjetDefault) { settings.scramjetVersion='2'; try { localStorage.setItem('hummingproxy-sj2-default-migrated','true'); } catch {} }
+if (!['1','2','static'].includes(settings.scramjetVersion)) settings.scramjetVersion='2';
 if (!['libcurl','epoxy'].includes(settings.transport)) settings.transport='libcurl';
 const persist = () => {try {localStorage.setItem('hummingproxy-settings',JSON.stringify(settings));} catch {}};
+if (migrateScramjetDefault) persist();
 const saveData = () => {try {localStorage.setItem('hummingproxy-bookmarks',JSON.stringify(bookmarks));localStorage.setItem('hummingproxy-tabs',JSON.stringify(tabs.map(t=>({id:t.id,url:t.url,title:t.title,icon:t.icon,history:settings.historyEnabled?t.history.slice(-25):[],index:settings.historyEnabled?t.index:-1}))));} catch {}};
 let bookmarks=read('hummingproxy-bookmarks',[]).filter(x=>x && typeof x.url==='string').slice(0,60);
 let tabs=[], current=null, scramjet=null, mux=null, v2Controller=null, ready=false, torEndpoint='', activeTransport='', loadTimeout=0, booting=false, pendingSearch=null;
 let storedTabs=read('hummingproxy-tabs',[]);
 let seq=0;
-let fallbackV2=false, fallbackReason='', storageRepair='not attempted', setupFailed='';
+let fallbackV2=false, fallbackV1=false, fallbackReason='', runtimeEngine='', storageRepair='not attempted', setupFailed='';
 let staticWisp='wss://anura.pro/wisp/';
 const hexColor = (value,fallback) => /^#[0-9a-f]{6}$/i.test(value||'')?value:fallback;
 const safeImage = value => {try {if(!value)return '';const u=new URL(value);return ['https:','http:'].includes(u.protocol)?u.href:'';}catch{return '';}};
@@ -57,8 +60,22 @@ function showRecovery(reason){
 }
 function hideRecovery(){if($('recoveryHelp'))$('recoveryHelp').classList.add('hidden');}
 
-const loading = (on, detail='') => {clearTimeout(loadTimeout);$('loader').classList.toggle('hidden',!on);$('loadProgress').classList.toggle('active',on);if(detail)$('loadDetail').textContent=String(detail).split(/\r?\n/).filter(Boolean).slice(-1)[0]||'';if(on)loadTimeout=setTimeout(()=>loading(false),45000);};
+const loading = (on, detail='') => {
+  clearTimeout(loadTimeout);
+  $('loader').classList.toggle('hidden',!on);
+  $('loadProgress').classList.toggle('active',on);
+  if(!on){$('loadProgress').value=0;return;}
+  setLoadPhase(5,detail||'Starting…');
+  // No reliable byte-level progress event exists for proxied iframe navigations.
+  // Hold at the last known stage rather than showing a fake looping spinner.
+  loadTimeout=setTimeout(()=>setLoadPhase(85,'Still waiting for the page response…'),45000);
+};
 function setLoadDetail(detail){if(!$('loader').classList.contains('hidden'))$('loadDetail').textContent=String(detail||'').split(/\r?\n/).filter(Boolean).slice(-1)[0]||'';}
+function setLoadPhase(percent,detail=''){
+  if($('loader').classList.contains('hidden'))return;
+  $('loadProgress').value=Math.max(0,Math.min(100,Number(percent)||0));
+  if(detail)setLoadDetail(detail);
+}
 const searchUrls = {google:q=>`https://www.google.com/search?igu=1&q=${encodeURIComponent(q)}`,duckduckgo:q=>`https://duckduckgo.com/?q=${encodeURIComponent(q)}`,firefox:q=>`https://www.google.com/search?igu=1&q=${encodeURIComponent(q)}`};
 function resolveUrl(input) {
   const v=input.trim();
@@ -71,11 +88,11 @@ function resolveUrl(input) {
 function route(){return {name:settings.transport,url:settings.tor?torEndpoint:`${location.protocol==='https:'?'wss:':'ws:'}//${location.host}/wisp/`};}
 async function switchTransport(){
   if(settings.tor&&!torEndpoint)throw Error('Tor is not available on this server');
-  const {name,url}=settings.scramjetVersion==='static'&&!settings.tor?{name:settings.transport,url:staticWisp}:route();
+  const {name,url}=runtimeEngine==='static'&&!settings.tor?{name:settings.transport,url:staticWisp}:route();
   const key=name+'|'+url;
   if(activeTransport===key)return;
   status('Connecting…');
-  if(settings.scramjetVersion==='2'||fallbackV2){
+  if(runtimeEngine==='2'){
     if(!v2Controller)throw Error('Scramjet 2 is not initialized');
     const {default: Transport}=await import(name==='libcurl'?'/v2-libcurl/index.mjs':'/v2-epoxy/index.mjs');
     v2Controller.setTransport(new Transport({wisp:url}));
@@ -83,7 +100,7 @@ async function switchTransport(){
     status(settings.tor?'Tor route selected':name+' ready');
     return;
   }
-  if(settings.scramjetVersion==='static'){
+  if(runtimeEngine==='static'){
     try {
       await mux.setTransport('/static/transport/'+name+'.mjs',[{wisp:url}]);
     } catch(error) {
@@ -190,10 +207,10 @@ function refreshTabMetadata(tab){
     if(rawIcon){
       const resolved=new URL(rawIcon,doc.baseURI).href;
       if(/^https?:\/\//.test(resolved)){
-        const next=resolved.startsWith(location.origin+'/')?resolved:(!(settings.scramjetVersion==='2'||fallbackV2)?'/service/'+encodeURIComponent(resolved):'');
+        const next=resolved.startsWith(location.origin+'/')?resolved:(runtimeEngine!=='2'?'/service/'+encodeURIComponent(resolved):'');
         if(next && next!==tab.icon){tab.icon=next;changed=true;}
       }
-    }else if(!tab.icon&&tab.url&&!(settings.scramjetVersion==='2'||fallbackV2)){
+    }else if(!tab.icon&&tab.url&&runtimeEngine!=='2'){
       tab.icon='/service/'+encodeURIComponent(new URL('/favicon.ico',tab.url).href);changed=true;
     }
   }catch(e){logDiagnostic('metadata error',e.message||e);}
@@ -232,7 +249,7 @@ async function inspectScramjetDatabase(){
 
 function ensureFrame(tab){
   if(tab.frame)return;
-  if(settings.scramjetVersion==='2'||fallbackV2){
+  if(runtimeEngine==='2'){
     const raw=v2Controller.createFrame();
     tab.frame={frame:raw.element,go:url=>raw.go(url)};
   }else tab.frame=scramjet.createFrame();
@@ -241,7 +258,17 @@ function ensureFrame(tab){
   tab.frame.frame.classList.toggle('hidden',tab.id!==current);
   tab.frame.frame.classList.add('frame-pending');
   $('frameHost').append(tab.frame.frame);
-  tab.frame.frame.addEventListener('load',()=>{monitorTabMetadata(tab);tab.busy=false;logDiagnostic('iframe load',tab.url);setLoadDetail('Page response received');requestAnimationFrame(()=>{tab.frame?.frame.classList.remove('frame-pending');if(current===tab.id){loading(false);status('Frame loaded (page rendering unverified)');}});ads(tab);});
+  tab.frame.frame.addEventListener('load',()=>{
+    monitorTabMetadata(tab);
+    if(!tab.busy){logDiagnostic('iframe bootstrap load','Initial frame document; no proxied navigation was in progress');return;}
+    tab.busy=false;logDiagnostic('iframe load',tab.url);
+    setLoadPhase(100,'Page response received (site rendering is not verified)');
+    requestAnimationFrame(()=>{
+      tab.frame?.frame.classList.remove('frame-pending');
+      if(current===tab.id){status('Frame loaded (page rendering unverified)');clearTimeout(loadTimeout);loadTimeout=setTimeout(()=>loading(false),220);}
+    });
+    ads(tab);
+  });
   tab.frame.frame.addEventListener('error',()=>{logDiagnostic('iframe error',tab.url);showRecovery('The embedded page could not load.');});
   tab.frame.addEventListener?.('urlchange',e=>{
     const url=String(e.url||tab.frame.url||'');if(!/^https?:\/\//.test(url))return;
@@ -255,17 +282,17 @@ async function navigate(input,push=true){
   try{url=resolveUrl(input);if(!url)return;}catch(e){status(e.message);showRecovery(e.message);return;}
   if(!ready){
     if(setupFailed){status('Proxy not ready: '+setupFailed);showRecovery('The selected engine failed to start: '+setupFailed+' Try another Scramjet version in Settings or reload.');return;}
-    pendingSearch={input:url,push};$('address').value=input;status('Preparing '+(settings.scramjetVersion==='static'?'Static Scramjet':'Scramjet')+' — your search will open when ready…');return;
+    pendingSearch={input:url,push};$('address').value=input;status('Preparing '+(runtimeEngine==='static'?'Static Scramjet':'Scramjet '+(runtimeEngine||settings.scramjetVersion))+' — your search will open when ready…');return;
   }
   let tab=currentTab();if(!tab||isHomeVisible()){tab=makeTab();current=tab.id;}
-  hideRecovery();loading(true,'Resolving address…');setLoadDetail('Resolving address…');
+  hideRecovery();loading(true,'Resolving address…');setLoadPhase(12,'Resolving address…');
   try{
-    setLoadDetail('Connecting transport…');await switchTransport();setLoadDetail('Preparing browser frame…');ensureFrame(tab);
+    setLoadPhase(27,'Connecting proxy transport…');await switchTransport();setLoadPhase(43,'Preparing browser frame…');ensureFrame(tab);
     tab.url=url;tab.title=shortTitle(url);tab.icon='';tab.busy=true;tab.frame.frame.classList.add('frame-pending');
     if(push&&settings.historyEnabled){tab.history=tab.history.slice(0,tab.index+1);tab.history.push(url);tab.index=tab.history.length-1;}else if(!settings.historyEnabled){tab.history=[];tab.index=-1;}
     if(settings.pathSearch){const routePath=location.pathname.endsWith('/hummingproxy-iframe.html')?'/hummingproxy-iframe.html/search':'/search';history.replaceState(null,'',routePath+'?q='+encodeURIComponent(input.trim()));}
     $('home').classList.add('hidden');$('browser').classList.remove('hidden');$('emptyTab').classList.add('hidden');updateUI();saveData();
-    logDiagnostic('navigate',url);setLoadDetail('Loading '+new URL(url).hostname+'…');
+    logDiagnostic('navigate',url);setLoadPhase(68,'Request sent to '+new URL(url).hostname+'; waiting for response…');
     await tab.frame.go(url);
     trimFrames();
   }catch(e){logDiagnostic('navigation error',e.message||e);loading(false);tab.busy=false;status('Navigation failed: '+String(e.message||e).slice(0,130));showRecovery('Navigation failed: '+(e.message||String(e))+' Try reloading the proxy or switching engines.');}
@@ -300,7 +327,7 @@ function waitForWorker(registration,timeout=18000){
 async function init(){
   if(booting)return;booting=true;
   $('engine').value=settings.engine;$('transport').value=settings.transport;$('adblock').checked=settings.adblock;syncAppearanceControls();
-  $('pathSearch').checked=settings.pathSearch===true;$('chromeMode').checked=settings.chromeMode===true;$('historyEnabled').checked=settings.historyEnabled===true;$('newTabColor').value=settings.newTabColor||'#ffffff';$('customTabTitle').value=settings.customTabTitle||'';$('customFavicon').value=settings.customFavicon||'';
+  $('pathSearch').checked=settings.pathSearch===true;$('chromeMode').checked=settings.chromeMode===true;$('historyEnabled').checked=settings.historyEnabled===true;$('customTabTitle').value=settings.customTabTitle||'';$('customFavicon').value=settings.customFavicon||'';
   drawBookmarks();
   $('scramjetVersion').value=settings.scramjetVersion; $('autoFallback').checked=settings.autoFallback!==false;
   if(!tabs.length){current=makeTab().id;updateUI();}
@@ -311,27 +338,35 @@ async function init(){
     if(!('serviceWorker'in navigator))throw Error('Service workers unavailable in this browser');
     if(settings.scramjetVersion==='static'){
       await initializeStatic();
-    }else if(settings.scramjetVersion==='2'){
-      await initializeV2();
     }else{
-      try {
-        await initializeV1();
-      }catch(error){
-        fallbackReason=String(error?.message||error);
-        logDiagnostic('Scramjet 1 setup failed',fallbackReason);
-        if(!isMissingStore(error))throw error;
-        await inspectScramjetDatabase();
-        if(fallbackReason){
-          if(settings.autoFallback===false)throw Error('Scramjet 1 storage problem: '+fallbackReason+' (automatic fallback disabled)');
-          fallbackV2=true;
-          status('Scramjet 1 failed; using Scramjet 2 for this session…');
-          await initializeV2();
+      const primary=settings.scramjetVersion==='2'?'2':'1';
+      try{
+        if(primary==='2')await initializeV2();else await initializeV1();
+      }catch(primaryError){
+        const primaryMessage=String(primaryError?.message||primaryError);
+        fallbackReason=primaryMessage;
+        logDiagnostic('Scramjet '+primary+' setup failed',primaryMessage);
+        if(settings.autoFallback===false)throw Error('Scramjet '+primary+' failed: '+primaryMessage+' (automatic fallback is disabled)');
+        runtimeEngine='';activeTransport='';scramjet=null;mux=null;v2Controller=null;
+        const backup=primary==='2'?'1':'2';
+        status('Scramjet '+primary+' failed; trying Scramjet '+backup+' fallback…');
+        if(primary==='2')fallbackV1=true;else{fallbackV2=true;await inspectScramjetDatabase();}
+        try{
+          if(backup==='1')await initializeV1();else await initializeV2();
+        }catch(fallbackError){
+          const fallbackMessage=String(fallbackError?.message||fallbackError);
+          logDiagnostic('Scramjet '+backup+' fallback failed',fallbackMessage);
+          throw Error('Scramjet '+primary+' failed: '+primaryMessage+'. Scramjet '+backup+' fallback also failed: '+fallbackMessage);
         }
       }
     }
     await switchTransport();
     setupFailed='';
-    ready=true;logDiagnostic('initialized',fallbackV2?'Scramjet 2 fallback':settings.scramjetVersion);status(fallbackV2?'Ready · Scramjet 2 fallback':'Ready to fly');$('go').disabled=false;
+    ready=true;
+    const fallbackLabel=fallbackV1?'Scramjet 1 fallback':fallbackV2?'Scramjet 2 fallback':'';
+    logDiagnostic('initialized',fallbackLabel||('Scramjet '+runtimeEngine));
+    status(fallbackLabel?'Ready · '+fallbackLabel:'Ready · Scramjet '+runtimeEngine);
+    $('go').disabled=false;
     const valid=Array.isArray(storedTabs)?storedTabs.filter(t=>t&&typeof t.url==='string'):[];
     if(valid.length){tabs=[];valid.forEach(t=>makeTab(t));current=tabs[0].id;}
     updateUI();
@@ -369,6 +404,7 @@ async function initializeV2(){
       });
       await v2Controller.wait();
       activeTransport=initialRoute.name+'|'+initialRoute.url;
+      runtimeEngine='2';
       const keepV2WorkerAlive=()=>{try{registration.active?.postMessage('keepalive');}catch{}};
       setInterval(keepV2WorkerAlive,15000);
       document.addEventListener('visibilitychange',()=>{if(!document.hidden)keepV2WorkerAlive();});
@@ -399,6 +435,7 @@ async function initializeStatic(){
   }
   if(!window._0zzl94?._ak44v7)throw Error('Static BareMux API unavailable');
   mux=new window._0zzl94._ak44v7('/static/bare-mux/bare-mux-worker.js');
+  runtimeEngine='static';
 }
 async function initializeV1(){
       if(!window.$scramjetLoadController)throw Error('Scramjet library unavailable');
@@ -411,12 +448,22 @@ async function initializeV1(){
       await waitForWorker(registration);
       const {BareMuxConnection}=window.BareMux||await import('/baremux/index.mjs');
       mux=new BareMuxConnection('/baremux/worker.js');
+      runtimeEngine='1';
 }
 async function diagnosticsText(){
   const t=currentTab(),f=t?.frame?.frame;
   const rect=f?.getBoundingClientRect();
   let workers=[];
   try{workers=(await navigator.serviceWorker.getRegistrations()).map(r=>({scope:r.scope,active:r.active?.state||'none',waiting:r.waiting?.state||'none'}));}catch(e){workers=['unavailable: '+e.message];}
+  const workerPath=runtimeEngine==='2'?'/v2/':runtimeEngine==='static'?'/static/':'/';
+  const workerScope=new URL(workerPath,location.origin).href;
+  const engineWorker=workers.find(w=>w.scope===workerScope);
+  const pageUrl=String(t?.url||'');
+  let pageNote='No destination-page diagnosis is available. An iframe load event alone does not prove successful rendering.';
+  if(/google\.com\/sorry|\/sorry\/index|recaptcha/i.test(pageUrl))pageNote='Google returned a verification/challenge page. That is a destination-site response, not by itself evidence of a Scramjet startup failure.';
+  else if(runtimeEngine&&ready)pageNote='Scramjet runtime initialized. A destination may still show its own block, challenge, or unsupported-page response.';
+  else if(!runtimeEngine)pageNote='No Scramjet runtime completed initialization.';
+  const frameNote=!f?'No frame has been created.':(!f.isConnected?'Frame is detached.':((f.classList.contains('hidden')||(rect&&rect.width===0&&rect.height===0))?'Frame is hidden or has zero layout size; this can be expected when its tab is inactive or the New Tab overlay is displayed.':'Frame is attached with a non-zero layout size.'));
   const lines=[
     'HummingProxy diagnostics',
     'Time: '+new Date().toISOString(),
@@ -424,22 +471,28 @@ async function diagnosticsText(){
     'Origin: '+location.origin,
     'Embedded: '+(window.top!==window),
     'Secure context: '+window.isSecureContext,
-    'Engine: '+(fallbackV2?'Scramjet 2 fallback':settings.scramjetVersion),
-    'Ready: '+ready,
+    'Preferred engine: Scramjet '+settings.scramjetVersion+(settings.scramjetVersion==='2'?' (default)':''),
+    'Active engine: '+(runtimeEngine?'Scramjet '+runtimeEngine:'none'),
+    'Engine initialized: '+Boolean(runtimeEngine),
+    'Fallback used: '+(fallbackV1?'yes — Scramjet 1':fallbackV2?'yes — Scramjet 2':'no'),
     'Fallback reason: '+(fallbackReason||'none'),
+    'Engine controller: '+(runtimeEngine==='2'?(v2Controller?'Scramjet 2 controller ready':'Scramjet 2 controller missing'):runtimeEngine==='static'?(scramjet?'Static Scramjet controller created':'Static controller missing'):(runtimeEngine==='1'?(scramjet?'Scramjet 1 controller created':'Scramjet 1 controller missing'):'none')),
+    'Engine service worker: '+(engineWorker?engineWorker.active:'not registered for '+workerPath),
     'Storage policy hint: '+(window.top!==window?'Third-party iframe; browser storage partitioning or denial possible':'Top-level page'),
     'Storage repair: '+storageRepair,
     'Transport: '+settings.transport,
-    'Tor selected: '+settings.tor,
     'Active transport configured: '+Boolean(activeTransport),
-    'Page: '+(t?.url||'none'),
+    'Tor selected: '+settings.tor,
+    'Page: '+(pageUrl||'none'),
+    'Page assessment: '+pageNote,
     'Frame present: '+Boolean(f),
     'Frame attached: '+Boolean(f?.isConnected),
     'Frame hidden: '+Boolean(f?.classList.contains('hidden')),
     'Frame dimensions: '+(rect?Math.round(rect.width)+'x'+Math.round(rect.height):'none'),
     'Frame src: '+(f?.getAttribute('src')||'none'),
     'Frame loading: '+Boolean(t?.busy),
-    'Service worker controller: '+(navigator.serviceWorker.controller?.scriptURL||'none'),
+    'Frame presentation: '+frameNote,
+    'Top-level service worker controller: '+(navigator.serviceWorker.controller?.scriptURL||'none'),
     'Registrations: '+JSON.stringify(workers),
     'Events: '+JSON.stringify(diagnosticEvents,null,2)
   ];
@@ -543,9 +596,13 @@ function home(){
 }
 $('homeBtnTop').onclick=home;$('homeBtn').onclick=home;
 $('newTab').onclick=()=>createTab();
-$('customizeNewTab').onclick=()=>{$('settings').classList.remove('hidden');$('newTabColorLabel').classList.toggle('visible');$('newTabColor').focus();};
-$('newTabColor').oninput=e=>{settings.newTabColor=e.target.value;document.documentElement.style.setProperty('--newtab-color',e.target.value);persist();};
-document.documentElement.style.setProperty('--newtab-color',settings.newTabColor||'#ffffff');
+$('customizeChrome').onclick=()=>{
+  $('settings').classList.remove('hidden');
+  const appearance=$('settings').querySelector('.appearance-options');
+  if(appearance)appearance.open=true;
+  $('settings').scrollTop=0;
+  refreshTor();
+};
 $('closeBrowserWindow').onclick=()=>home();
 $('openTabs').onclick=()=>{if(!tabs.length){createTab();return;}activate(current&&tabs.some(t=>t.id===current)?current:tabs[0].id);};
 $('bookmarkToggle').onclick=()=>{

@@ -5,9 +5,9 @@
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <meta name="theme-color" content="#0a2e0a">
   <title>HummingProxy</title>
-  <link rel="stylesheet" href="/style.css?v=home-buttons-4">
+  <link rel="stylesheet" href="/style.css?v=chrome-mode-sj2-progress-1">
   <script src="/scram/scramjet.all.js" defer></script>
-  <script src="/app.js?v=home-buttons-4" defer></script>
+  <script src="/app.js?v=chrome-mode-sj2-progress-1" defer></script>
 </head>
 <body>
   <div class="shell">
@@ -57,7 +57,7 @@
         <div id="emptyTab" class="empty-tab hidden">
           <div class="empty-tab-content">
             <h2>New tab</h2>
-            <div class="newtab-customize"><button id="customizeNewTab" type="button">Customize Chrome</button><label id="newTabColorLabel" title="New-tab color">Color <input id="newTabColor" type="color" value="#ffffff"></label></div>
+            <button id="customizeChrome" class="customize-chrome" type="button">✎ Customize Chrome</button>
             <form id="emptyTabForm" class="empty-tab-form">
               <input id="emptyTabAddress" type="text" autocomplete="off" spellcheck="false" placeholder="Search Google or enter a URL" aria-label="Search in new tab">
               <button type="submit">Search</button>
@@ -82,8 +82,8 @@
       <label class="field">Browser tab title<input id="customTabTitle" type="text" maxlength="80" placeholder="HummingProxy"></label>
       <label class="field">Browser tab favicon URL<input id="customFavicon" type="url" placeholder="https://example.com/favicon.ico"></label>
       <label class="field">Search engine<select id="engine"><option value="duckduckgo">DuckDuckGo</option><option value="google" selected>Google</option><option value="firefox">Firefox (Google results)</option></select></label>
-      <label class="field">Scramjet version<select id="scramjetVersion"><option value="1" selected>Scramjet 1 (default)</option><option value="2">Scramjet 2 (experimental)</option><option value="static">Static Scramjet</option></select></label>
-      <label class="toggle"><span>Automatically use Scramjet 2 if Scramjet 1 fails<small>Disable to see the original startup error instead</small></span><input id="autoFallback" type="checkbox" checked></label>
+      <label class="field">Scramjet version<select id="scramjetVersion"><option value="2" selected>Scramjet 2 (default)</option><option value="1">Scramjet 1</option><option value="static">Static Scramjet</option></select></label>
+      <label class="toggle"><span>Automatically fall back to the other Scramjet version if the selected one fails<small>Turn off to show the startup error without switching engines</small></span><input id="autoFallback" type="checkbox" checked></label>
       <label class="field">Transport<select id="transport"><option value="libcurl">libcurl (default)</option><option value="epoxy">Epoxy</option></select></label>
       <label class="toggle"><span>Enable adblock<small>Basic page-element hiding only</small></span><input id="adblock" type="checkbox"></label>
       <label class="toggle"><span>Enable Tor browsing<small id="torNote">Checking built-in Tor…</small></span><input id="tor" type="checkbox"></label>
@@ -122,7 +122,7 @@
     <div class="loader hidden" id="loader" role="status" aria-live="polite">
       <div class="loading-bird" aria-hidden="true"><img src="https://uploads.onecompiler.io/447kr4gf2/44f9wbztv/humming%5Bbird%5DTech%20logo%20%285%29.png" alt=""></div>
       <p>our hummingbird army is looking for relevant sites</p>
-      <div id="loadProgress" class="load-progress" aria-hidden="true"><span></span></div>
+      <progress id="loadProgress" class="load-progress" max="100" value="0" aria-label="Page loading progress"></progress>
       <small id="loadDetail">Connecting…</small>
       <button type="button" id="cancelLoad">Cancel</button>
     </div>
