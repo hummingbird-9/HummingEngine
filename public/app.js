@@ -78,7 +78,16 @@ function setLoadPhase(percent,detail=''){
   if(detail)setLoadDetail(detail);
 }
 const searchUrls = {google:q=>`https://www.google.com/search?igu=1&q=${encodeURIComponent(q)}`,duckduckgo:q=>`https://duckduckgo.com/?q=${encodeURIComponent(q)}`,firefox:q=>`https://www.google.com/search?igu=1&q=${encodeURIComponent(q)}`};
-function updateCustomSearchUrl(){const input=$('customSearchUrl');if(input)input.value=location.origin+'/search?q=%s';}
+function iframeEntryBase(pathname=location.pathname){
+  const match=pathname.match(/^(.*\/hummingproxy-?iframe\.html)(?:\/search)?\/?$/i);
+  return match?match[1]:'';
+}
+function searchRoutePath(){const base=iframeEntryBase();return base?base+'/search':'/search';}
+function isSearchEntryPath(pathname=location.pathname){return pathname==='/search'||/\/hummingproxy-?iframe\.html\/search\/?$/i.test(pathname);}
+function updateCustomSearchUrl(){
+  const input=$('customSearchUrl');if(input)input.value=location.origin+'/search?q=%s';
+  const iframeInput=$('iframeSearchUrl');if(iframeInput)iframeInput.value=location.origin+'/hummingproxy-iframe.html/search?q=%s';
+}
 function resolveUrl(input) {
   const v=input.trim();
   if(!v)return '';
@@ -293,7 +302,7 @@ async function navigate(input,push=true){
     setLoadPhase(27,'Connecting proxy transport…');await switchTransport();setLoadPhase(43,'Preparing browser frame…');ensureFrame(tab);
     tab.url=url;tab.title=shortTitle(url);tab.icon='';tab.busy=true;tab.frame.frame.classList.add('frame-pending');
     if(push&&settings.historyEnabled){tab.history=tab.history.slice(0,tab.index+1);tab.history.push(url);tab.index=tab.history.length-1;}else if(!settings.historyEnabled){tab.history=[];tab.index=-1;}
-    if(settings.pathSearch){const routePath=location.pathname.endsWith('/hummingproxy-iframe.html')?'/hummingproxy-iframe.html/search':'/search';history.replaceState(null,'',routePath+'?q='+encodeURIComponent(input.trim()));}
+    if(settings.pathSearch){history.replaceState(null,'',searchRoutePath()+'?q='+encodeURIComponent(input.trim()));}
     $('home').classList.add('hidden');$('browser').classList.remove('hidden');$('emptyTab').classList.add('hidden');updateUI();saveData();
     logDiagnostic('navigate',url);setLoadPhase(68,'Request sent to '+new URL(url).hostname+'; waiting for response…');
     await tab.frame.go(url);
@@ -374,10 +383,13 @@ async function init(){
     if(valid.length){tabs=[];valid.forEach(t=>makeTab(t));current=tabs[0].id;}
     updateUI();
     const params=new URLSearchParams(location.search);
-    const isSearchRoute=location.pathname.endsWith('/search')||location.pathname.endsWith('/hummingproxy-iframe.html/search');
+    const pathname=location.pathname;
+    const isSearchRoute=isSearchEntryPath(pathname);
+    const iframeBase=iframeEntryBase(pathname);
     const query=params.get('q');
-    if(query!==null&&query.trim()&&(isSearchRoute||settings.pathSearch)){
-      history.replaceState(null,'',location.pathname.replace(/\/search$/,''));
+    if(query!==null&&query.trim()&&(isSearchRoute||iframeBase||settings.pathSearch)){
+      const cleanPath=iframeBase||(pathname.replace(/\/search\/?$/i,'')||'/');
+      history.replaceState(null,'',cleanPath+location.hash);
       pendingSearch={input:query,push:true};
     }
     if(pendingSearch){const target=pendingSearch;pendingSearch=null;await navigate(target.input,target.push);}
@@ -516,6 +528,7 @@ $('browserForm').onsubmit=e=>{e.preventDefault();void navigate($('browserAddress
 $('emptyTabForm').onsubmit=e=>{e.preventDefault();void navigate($('emptyTabAddress').value);};
 $('settingsBtn').onclick=()=>{$('settings').classList.toggle('hidden');updateCustomSearchUrl();refreshTor();};
 $('copySearchUrl').onclick=async()=>{updateCustomSearchUrl();const value=$('customSearchUrl').value;try{await navigator.clipboard.writeText(value);status('Custom search URL copied');}catch{const field=$('customSearchUrl');field.focus();field.select();try{document.execCommand('copy');status('Custom search URL copied');}catch{status('Select and copy the search URL manually');}}};
+$('copyIframeSearchUrl').onclick=async()=>{updateCustomSearchUrl();const value=$('iframeSearchUrl').value;try{await navigator.clipboard.writeText(value);status('Iframe search URL copied');}catch{const field=$('iframeSearchUrl');field.focus();field.select();try{document.execCommand('copy');status('Iframe search URL copied');}catch{status('Select and copy the iframe search URL manually');}}};
 $('browserSettings').onclick=()=>{$('settings').classList.toggle('hidden');updateCustomSearchUrl();refreshTor();};
 $('closeSettings').onclick=()=>$('settings').classList.add('hidden');
 

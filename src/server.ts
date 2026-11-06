@@ -72,7 +72,7 @@ const app = Fastify({
   })
 });
 app.addHook('onSend',async(req,reply,payload)=>{
-  if(/^\/(?:|index\.html|sw\.js|app\.js|api\/config)$/.test(new URL(req.url,'http://localhost').pathname))reply.header('Cache-Control','no-store,max-age=0');
+  if(/^\/(?:|index\.html|sw\.js|app\.js|api\/config)$/.test(new URL(req.url,'http://localhost').pathname)||/(?:^|\/)hummingproxy-?iframe\.html(?:\/search)?\/?$/i.test(new URL(req.url,'http://localhost').pathname)||new URL(req.url,'http://localhost').pathname==='/search')reply.header('Cache-Control','no-store,max-age=0');
   return payload;
 });
 app.get('/health',async()=>({ok:true,app:'HummingProxy'}));
@@ -92,7 +92,8 @@ await app.register(fastifyStatic,{root:libcurlPath,prefix:'/libcurl/',decorateRe
 await app.register(fastifyStatic,{root:epoxyPath,prefix:'/epoxy/',decorateReply:false});
 app.setNotFoundHandler((req,reply)=>{
   const path = new URL(req.url,'http://localhost').pathname;
-  if(path === '/search' || path === '/hummingproxy-iframe.html/search') {
+  const iframeEntry = /(?:^|\/)hummingproxy-?iframe\.html(?:\/search)?\/?$/i.test(path);
+  if(path === '/search' || iframeEntry) {
     reply.header('Cache-Control','no-store');
     return reply.type('text/html; charset=utf-8').sendFile('index.html');
   }

@@ -41,3 +41,12 @@ In HummingProxy Settings, enable **Proxy-only mode** to remove the home screen, 
 The same Settings panel shows the current **Chrome custom search URL** and has a copy button. In Chrome, open Settings → Search engine → Manage search engines and site search → Add. Use `HummingProxy` as the name, `hp` as the shortcut, and paste the copied URL (it uses `/search?q=%s`). This URL is served by the app's `/search` route and can be used independently of the optional address-bar path-search setting. Managed Chrome profiles may restrict custom search engines.
 
 There is no application tab limit. Tabs shrink to 42px and then scroll horizontally; device RAM remains the practical limit.
+
+
+### Search endpoints, including iframe embedding
+
+- Top-level search: `/search?q=%s`
+- Iframe search: `/hummingproxy-iframe.html/search?q=%s`
+- Compatibility alias: `/hummingproxyiframe.html/search?q=%s`
+
+The iframe endpoint serves the HummingProxy app shell and forwards the decoded `q` value into the configured search engine/proxy. It also works behind a URL path prefix when the same server is mounted below a subpath. When embedding, set the iframe `src` to the HummingProxy-hosted URL; a path on an unrelated parent-site domain will only work if that domain proxies the request to this server.

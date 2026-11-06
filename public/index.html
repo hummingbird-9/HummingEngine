@@ -80,7 +80,10 @@
       <div class="custom-search-setting">
         <label class="field">Chrome custom search URL<input id="customSearchUrl" type="text" readonly spellcheck="false"></label>
         <button id="copySearchUrl" type="button">Copy search URL</button>
-        <small>In Chrome, open Settings → Search engine → Manage search engines → Add. Use HummingProxy as the name, hp as the shortcut, and paste this URL. The %s placeholder is replaced by your search.</small>
+        <label class="field">Iframe search URL<input id="iframeSearchUrl" type="text" readonly spellcheck="false"></label>
+        <button id="copyIframeSearchUrl" type="button">Copy iframe search URL</button>
+        <small>Use the iframe URL when the proxy is embedded in another page. It accepts searches at /hummingproxy-iframe.html/search?q= and also supports the no-hyphen /hummingproxyiframe.html alias. The %s placeholder is replaced by your search.</small>
+        <small>In Chrome, open Settings → Search engine → Manage search engines → Add. Use HummingProxy as the name, hp as the shortcut, and paste the regular search URL.</small>
       </div>
       <label class="toggle"><span>Save in-app browsing history<small>Off by default. Enabling asks for confirmation. This only controls history stored by HummingProxy; it cannot control network or server logs.</small></span><input id="historyEnabled" type="checkbox"></label>
       <label class="field">Browser tab title<input id="customTabTitle" type="text" maxlength="80" placeholder="HummingProxy"></label>
