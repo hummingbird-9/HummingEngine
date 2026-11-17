@@ -1,5 +1,6 @@
 import { cp, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
-import { resolve } from 'node:path';
+import { createRequire } from 'node:module';
+import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const root = resolve(fileURLToPath(new URL('..', import.meta.url)));
@@ -12,6 +13,42 @@ const output = resolve(root, '_site');
 await rm(output, { recursive: true, force: true });
 await mkdir(output, { recursive: true });
 await cp(resolve(root, 'public'), output, { recursive: true });
+
+// Include the pinned Scramjet 2 browser runtime in the static Pages artifact.
+const v2Require = createRequire(resolve(root, 'v2/package.json'));
+const v2Dir = name => dirname(v2Require.resolve(name));
+const scramjetPath = v2Require('@mercuryworkshop/scramjet/path').scramjetPath;
+const scramjetPackage = JSON.parse(await readFile(
+  resolve(root, 'v2/node_modules/@mercuryworkshop/scramjet/package.json'),
+  'utf8'
+));
+if (scramjetPackage.version !== '2.0.67-alpha.2') {
+  throw new Error(`Expected Scramjet 2.0.67-alpha.2, found ${scramjetPackage.version}`);
+}
+const runtimeFolders = [
+  ['v2-scram', scramjetPath],
+  ['v2-controller', v2Dir('@mercuryworkshop/scramjet-controller')],
+  ['v2-utils', v2Dir('@mercuryworkshop/scramjet-utils')],
+  ['v2-libcurl', v2Dir('@mercuryworkshop/libcurl-transport')],
+  ['v2-epoxy', v2Dir('@mercuryworkshop/epoxy-transport')]
+];
+for (const [target, source] of runtimeFolders) {
+  if (!source) throw new Error(`Could not resolve Scramjet runtime folder: ${target}`);
+  await cp(source, resolve(output, target), { recursive: true });
+}
+for (const file of [
+  'v2-scram/scramjet.js',
+  'v2-scram/scramjet.wasm',
+  'v2-controller/controller.api.js',
+  'v2-controller/controller.inject.js',
+  'v2-controller/controller.sw.js',
+  'v2-utils/scramjet-utils.js',
+  'v2-libcurl/index.mjs',
+  'v2-epoxy/index.mjs'
+]) {
+  await readFile(resolve(output, file));
+}
+console.log(`Included Scramjet ${scramjetPackage.version} and matching controller, utils, and transports.`);
 
 const indexPath = resolve(output, 'index.html');
 let index = await readFile(indexPath, 'utf8');
