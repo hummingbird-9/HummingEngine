@@ -14,6 +14,35 @@ await rm(output, { recursive: true, force: true });
 await mkdir(output, { recursive: true });
 await cp(resolve(root, 'public'), output, { recursive: true });
 
+// Stage the stable Scramjet 1.x runtime and its transports for Pages.
+const rootRequire = createRequire(resolve(root, 'package.json'));
+const rootPackage = JSON.parse(await readFile(resolve(root, 'package.json'), 'utf8'));
+if (rootPackage.dependencies['@mercuryworkshop/scramjet'] !== '1.1.0') {
+  throw new Error('Expected stable Scramjet 1.1.0 in the root package.');
+}
+const v1Folders = [
+  ['scram', rootRequire('@mercuryworkshop/scramjet/path').scramjetPath],
+  ['baremux', rootRequire('@mercuryworkshop/bare-mux/node').baremuxPath],
+  ['libcurl', rootRequire('@mercuryworkshop/libcurl-transport').libcurlPath],
+  ['epoxy', rootRequire('@mercuryworkshop/epoxy-transport').epoxyPath]
+];
+for (const [target, source] of v1Folders) {
+  if (!source) throw new Error(`Could not resolve stable Scramjet runtime folder: ${target}`);
+  await cp(source, resolve(output, target), { recursive: true });
+}
+for (const file of [
+  'scram/scramjet.all.js',
+  'scram/scramjet.sync.js',
+  'scram/scramjet.wasm.wasm',
+  'baremux/index.mjs',
+  'baremux/worker.js',
+  'libcurl/index.mjs',
+  'epoxy/index.mjs'
+]) {
+  await readFile(resolve(output, file));
+}
+console.log('Included stable Scramjet 1.1.0 and matching BareMux/transports.');
+
 // Include the pinned Scramjet 2 browser runtime in the static Pages artifact.
 const v2Require = createRequire(resolve(root, 'v2/package.json'));
 const v2Dir = name => dirname(v2Require.resolve(name));
