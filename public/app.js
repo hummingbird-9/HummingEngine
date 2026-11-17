@@ -297,7 +297,7 @@ function popupDestination(value,base){
     if(!['http:','https:'].includes(destination.protocol))return '';
     if(destination.origin===location.origin){
       const pathname=decodeURIComponent(destination.pathname);
-      for(const prefix of [appPath(appPath('/static/scramjet/')),appPath(appPath('/v2/p/')),appPath(appPath('/service/'))]){
+      for(const prefix of [appPath('/static/scramjet/'),appPath('/v2/p/'),appPath('/service/')]){
         if(pathname.startsWith(prefix)){
           const original=pathname.slice(prefix.length).replace(/^\/+/, '');
           if(/^https?:\/\//i.test(original)){
