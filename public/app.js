@@ -1,20 +1,14 @@
 (() => {
 'use strict';
 const $ = id => document.getElementById(id);
-const defaults = {engine:'google',transport:'libcurl',adblock:false,tor:false,bookmarksVisible:true,scramjetVersion:'static',autoFallback:true,theme:'classic',colorA:'#0a2e0a',colorB:'#1a5d1a',accent:'#90e4c1',newTabBackground:'',pageBackground:'',wallpaperDim:30,rounding:12,font:'Segoe UI',motion:true,buttonColor:'#205b35',buttonTextColor:'#e0f7e0',buttonSize:'normal',buttonStyle:'glass',buttonHover:true,pathSearch:false,proxyOnly:false,historyEnabled:false,customTabTitle:'',customFavicon:''};
+const defaults = {engine:'google',transport:'libcurl',adblock:false,tor:false,bookmarksVisible:true,scramjetVersion:'2',autoFallback:true,theme:'classic',colorA:'#0a2e0a',colorB:'#1a5d1a',accent:'#90e4c1',newTabBackground:'',pageBackground:'',wallpaperDim:30,rounding:12,font:'Segoe UI',motion:true,buttonColor:'#205b35',buttonTextColor:'#e0f7e0',buttonSize:'normal',buttonStyle:'glass',buttonHover:true,pathSearch:false,proxyOnly:false,historyEnabled:false,customTabTitle:'',customFavicon:''};
 const read = (key, fallback) => {try {return JSON.parse(localStorage.getItem(key)) ?? fallback;} catch {return fallback;}};
 const settings = {...defaults,...read('hummingproxy-settings',{})};
 delete settings.chromeMode; // Chrome mode has been retired.
-const migrateStaticDefault = !read('hummingproxy-static-default-migrated',false);
 if (!['google','duckduckgo','firefox'].includes(settings.engine)) settings.engine='google';
-if (migrateStaticDefault) {
-  if (settings.scramjetVersion === '2') settings.scramjetVersion='static';
-  try { localStorage.setItem('hummingproxy-static-default-migrated','true'); } catch {}
-}
-if (!['1','2','static'].includes(settings.scramjetVersion)) settings.scramjetVersion='static';
+if (!['1','2','static'].includes(settings.scramjetVersion)) settings.scramjetVersion='2';
 if (!['libcurl','epoxy'].includes(settings.transport)) settings.transport='libcurl';
 const persist = () => {try {localStorage.setItem('hummingproxy-settings',JSON.stringify(settings));} catch {}};
-if (migrateStaticDefault) persist();
 const APP_BASE = (() => {
   const raw=document.querySelector('meta[name="app-base"]')?.content?.trim();
   if(!raw)return '';
@@ -27,6 +21,11 @@ const launchQuery = launchParams.get('q');
 const launchOpen = launchParams.get('open');
 const searchPresentation = Boolean((launchQuery&&launchQuery.trim())||(launchOpen&&launchOpen.trim())||launchParams.has('popup'));
 const isPagesHost = document.querySelector('meta[name="app-host"]')?.content === 'github-pages';
+if(isPagesHost&&!read('hummingproxy-pages-scramjet2-default',false)){
+  settings.scramjetVersion='2';
+  try{localStorage.setItem('hummingproxy-pages-scramjet2-default','true');}catch{}
+  persist();
+}
 const proxyOnlyMode = () => settings.proxyOnly===true || searchPresentation;
 document.documentElement.classList.toggle('proxy-only',proxyOnlyMode());
 const saveData = () => {try {localStorage.setItem('hummingproxy-bookmarks',JSON.stringify(bookmarks));localStorage.setItem('hummingproxy-tabs',JSON.stringify(tabs.map(t=>({id:t.id,url:t.url,title:t.title,icon:t.icon,history:settings.historyEnabled?t.history.slice(-25):[],index:settings.historyEnabled?t.index:-1}))));} catch {}};
@@ -451,11 +450,12 @@ async function init(){
   $('pathSearch').checked=settings.pathSearch===true;$('proxyOnly').checked=settings.proxyOnly===true;$('historyEnabled').checked=settings.historyEnabled===true;updateCustomSearchUrl();$('customTabTitle').value=settings.customTabTitle||'';$('customFavicon').value=settings.customFavicon||'';
   drawBookmarks();
   if(isPagesHost){
-    settings.scramjetVersion='1';
     settings.tor=false;
-    $('scramjetVersion').value='1';
+    $('scramjetVersion').value=settings.scramjetVersion;
     $('scramjetVersion').disabled=false;
-    $('scramjetVersion').title='GitHub Pages defaults to stable Scramjet 1.1.0. Scramjet 2.0.67-alpha.2 remains available as an experimental option.';
+    $('scramjetVersion').title='GitHub Pages runs the bundled Scramjet 2 runtime by default. Stable Scramjet 1.1.0 remains available as a fallback.';
+    const legacyOption=$('scramjetVersion').querySelector('option[value="static"]');
+    if(legacyOption)legacyOption.hidden=true;
     persist();
   }else $('scramjetVersion').value=settings.scramjetVersion;
   $('autoFallback').checked=settings.autoFallback!==false;
@@ -743,7 +743,7 @@ async function changeRoute(key,value){
 $('scramjetVersion').onchange=e=>{
   const next=e.target.value;
   if(next===settings.scramjetVersion)return;
-  if(isPagesHost&&next!=='static')return;
+  if(isPagesHost&&next==='static'){e.target.value=settings.scramjetVersion;return;}
   settings.scramjetVersion=next;persist();location.reload();
 };
 $('transport').onchange=e=>changeRoute('transport',e.target.value);
