@@ -49,3 +49,14 @@ There is no application tab limit. Tabs shrink to 42px and then scroll horizonta
 - Embedded search: append `/search?q=%s` to the HummingProxy iframe's current entry path, whatever that path is (for example, `/any-name.html/search?q=%s`).
 
 The iframe route is path-agnostic; it does not require a filename such as `hummingproxy-iframe.html`. The server serves the app shell for iframe document requests, HTML entry paths, and any unmatched path ending in `/search`. The client reads `q` when embedded and preserves the iframe entry path when generating the iframe search URL. If you use a custom domain such as `example.com`, that domain must host HummingProxy or reverse-proxy those requests to the HummingProxy server; an iframe's parent-page URL alone does not route requests to another origin.
+
+
+## GitHub Pages static deployment
+
+The `Deploy HummingEngine to GitHub Pages` workflow publishes the browser UI and bundled Static Scramjet assets whenever `main` is updated. In the repository's **Settings → Pages**, set the source to **GitHub Actions** once. The build automatically uses the project-site base path `/HummingEngine/`; the expected site URL is `https://hummingbird-9.github.io/HummingEngine/`.
+
+GitHub Pages hosts static files only. It does not run this repository's Fastify server, Docker, Tor, or its Wisp relay. Static Scramjet therefore uses the external WebSocket relay configured in `public/static/wisp.txt` (currently `wss://anura.pro/wisp/`). You can change that URL to a Wisp endpoint you operate. The relay's availability, bandwidth, and response time still affect proxied pages, but the HummingProxy app itself no longer needs a running Render web service.
+
+GitHub Pages locks the runtime to the bundled **Static Scramjet** build; server-dependent Scramjet 1/2 and Tor options are not used there. The Pages artifact includes a query-aware `404.html` fallback so search-engine URLs such as `/HummingEngine/search?q=%s` and iframe `search?q=` links resolve to the app. Search launches use a full-window proxy view with only **Settings** and **Diagnostics** visible. Copy the Chrome search URL in Settings to add HummingProxy as a default search engine.
+
+In normal browser mode the browser tabs and page canvas also fill the viewport. Links requesting a new tab and calls to `window.open()` are routed into HummingProxy tabs; while in search/proxy-only mode they open another HummingProxy page.

@@ -1,17 +1,34 @@
 (() => {
 'use strict';
 const $ = id => document.getElementById(id);
-const defaults = {engine:'google',transport:'libcurl',adblock:false,tor:false,bookmarksVisible:true,scramjetVersion:'2',autoFallback:true,theme:'classic',colorA:'#0a2e0a',colorB:'#1a5d1a',accent:'#90e4c1',newTabBackground:'',pageBackground:'',wallpaperDim:30,rounding:12,font:'Segoe UI',motion:true,buttonColor:'#205b35',buttonTextColor:'#e0f7e0',buttonSize:'normal',buttonStyle:'glass',buttonHover:true,pathSearch:false,proxyOnly:false,historyEnabled:false,customTabTitle:'',customFavicon:''};
+const defaults = {engine:'google',transport:'libcurl',adblock:false,tor:false,bookmarksVisible:true,scramjetVersion:'static',autoFallback:true,theme:'classic',colorA:'#0a2e0a',colorB:'#1a5d1a',accent:'#90e4c1',newTabBackground:'',pageBackground:'',wallpaperDim:30,rounding:12,font:'Segoe UI',motion:true,buttonColor:'#205b35',buttonTextColor:'#e0f7e0',buttonSize:'normal',buttonStyle:'glass',buttonHover:true,pathSearch:false,proxyOnly:false,historyEnabled:false,customTabTitle:'',customFavicon:''};
 const read = (key, fallback) => {try {return JSON.parse(localStorage.getItem(key)) ?? fallback;} catch {return fallback;}};
 const settings = {...defaults,...read('hummingproxy-settings',{})};
 delete settings.chromeMode; // Chrome mode has been retired.
-const migrateScramjetDefault = !read('hummingproxy-sj2-default-migrated',false);
+const migrateStaticDefault = !read('hummingproxy-static-default-migrated',false);
 if (!['google','duckduckgo','firefox'].includes(settings.engine)) settings.engine='google';
-if (migrateScramjetDefault) { settings.scramjetVersion='2'; try { localStorage.setItem('hummingproxy-sj2-default-migrated','true'); } catch {} }
-if (!['1','2','static'].includes(settings.scramjetVersion)) settings.scramjetVersion='2';
+if (migrateStaticDefault) {
+  if (settings.scramjetVersion === '2') settings.scramjetVersion='static';
+  try { localStorage.setItem('hummingproxy-static-default-migrated','true'); } catch {}
+}
+if (!['1','2','static'].includes(settings.scramjetVersion)) settings.scramjetVersion='static';
 if (!['libcurl','epoxy'].includes(settings.transport)) settings.transport='libcurl';
 const persist = () => {try {localStorage.setItem('hummingproxy-settings',JSON.stringify(settings));} catch {}};
-if (migrateScramjetDefault) persist();
+if (migrateStaticDefault) persist();
+const APP_BASE = (() => {
+  const raw=document.querySelector('meta[name="app-base"]')?.content?.trim();
+  if(!raw)return '';
+  try {const path=new URL(raw,location.origin).pathname;return path==='/'?'':path.replace(/\/+$/,'');}
+  catch{return '';}
+})();
+const appPath = path => APP_BASE + (String(path).startsWith('/')?String(path):'/'+String(path));
+const launchParams = new URLSearchParams(location.search);
+const launchQuery = launchParams.get('q');
+const launchOpen = launchParams.get('open');
+const searchPresentation = Boolean((launchQuery&&launchQuery.trim())||(launchOpen&&launchOpen.trim())||launchParams.has('popup'));
+const isPagesHost = document.querySelector('meta[name="app-host"]')?.content === 'github-pages';
+const proxyOnlyMode = () => settings.proxyOnly===true || searchPresentation;
+document.documentElement.classList.toggle('proxy-only',proxyOnlyMode());
 const saveData = () => {try {localStorage.setItem('hummingproxy-bookmarks',JSON.stringify(bookmarks));localStorage.setItem('hummingproxy-tabs',JSON.stringify(tabs.map(t=>({id:t.id,url:t.url,title:t.title,icon:t.icon,history:settings.historyEnabled?t.history.slice(-25):[],index:settings.historyEnabled?t.index:-1}))));} catch {}};
 let bookmarks=read('hummingproxy-bookmarks',[]).filter(x=>x && typeof x.url==='string').slice(0,60);
 let tabs=[], current=null, scramjet=null, mux=null, v2Controller=null, ready=false, torEndpoint='', activeTransport='', loadTimeout=0, booting=false, pendingSearch=null;
@@ -23,12 +40,12 @@ const hexColor = (value,fallback) => /^#[0-9a-f]{6}$/i.test(value||'')?value:fal
 const safeImage = value => {try {if(!value)return '';const u=new URL(value);return ['https:','http:'].includes(u.protocol)?u.href:'';}catch{return '';}};
 function applyAppearance(){
   const root=document.documentElement;
-  root.classList.toggle('proxy-only',settings.proxyOnly===true);
+  root.classList.toggle('proxy-only',proxyOnlyMode());
   document.title=(String(settings.customTabTitle||'').trim()||'HummingProxy').slice(0,80);
   let favicon=document.querySelector('link[ data-custom-favicon]');
   if(!favicon){favicon=document.createElement('link');favicon.rel='icon';favicon.setAttribute('data-custom-favicon','');document.head.append(favicon);}
   const iconUrl=safeImage(settings.customFavicon);
-  favicon.href=iconUrl||'/favicon.ico';
+  favicon.href=iconUrl||appPath('/favicon.ico');
   root.style.setProperty('--color-a',hexColor(settings.colorA,'#0a2e0a'));
   root.style.setProperty('--color-b',hexColor(settings.colorB,'#1a5d1a'));
   root.style.setProperty('--accent',hexColor(settings.accent,'#90e4c1'));
@@ -69,7 +86,17 @@ const loading = (on, detail='') => {
   setLoadPhase(5,detail||'Starting…');
   // No reliable byte-level progress event exists for proxied iframe navigations.
   // Hold at the last known stage rather than showing a fake looping spinner.
-  loadTimeout=setTimeout(()=>setLoadPhase(85,'Still waiting for the page response…'),45000);
+  loadTimeout=setTimeout(()=>{
+    setLoadPhase(85,'The site is taking longer than usual to respond…');
+    status('Still waiting for the site response. The page can continue loading in the background.');
+    loadTimeout=setTimeout(()=>{
+      const pending=currentTab();
+      if(pending?.busy){
+        loading(false);
+        status('The site is still loading. Its page can finish in the background.');
+      }
+    },18000);
+  },12000);
 };
 function setLoadDetail(detail){if(!$('loader').classList.contains('hidden'))$('loadDetail').textContent=String(detail||'').split(/\r?\n/).filter(Boolean).slice(-1)[0]||'';}
 function setLoadPhase(percent,detail=''){
@@ -87,10 +114,10 @@ function iframeEntryBase(pathname=location.pathname){
   // Also allow a custom HTML entry filename when the app is opened directly.
   return /\.html?$/i.test(pathname)?pathname.replace(/\/+$/,''):'';
 }
-function searchRoutePath(){const base=iframeEntryBase();return base?base+'/search':'/search';}
+function searchRoutePath(){const base=iframeEntryBase();return base?base+'/search':appPath('/search');}
 function isSearchEntryPath(pathname=location.pathname){return /(?:^|\/)search\/?$/i.test(pathname);}
 function updateCustomSearchUrl(){
-  const input=$('customSearchUrl');if(input)input.value=location.origin+'/search?q=%s';
+  const input=$('customSearchUrl');if(input)input.value=location.origin+appPath('/search?q=%s');
   const iframeInput=$('iframeSearchUrl');if(iframeInput)iframeInput.value=location.origin+searchRoutePath()+'?q=%s';
 }
 function resolveUrl(input) {
@@ -101,7 +128,7 @@ function resolveUrl(input) {
   if(/^[^\s/]+\.[a-z]{2,}(?::\d+)?(?:[/?#]\S*)?$/i.test(v))return new URL('https://'+v).href;
   return searchUrls[settings.engine](v);
 }
-function route(){return {name:settings.transport,url:settings.tor?torEndpoint:`${location.protocol==='https:'?'wss:':'ws:'}//${location.host}/wisp/`};}
+function route(){return {name:settings.transport,url:settings.tor?torEndpoint:`${location.protocol==='https:'?'wss:':'ws:'}//${location.host}${appPath('/wisp/')}`};}
 async function switchTransport(){
   if(settings.tor&&!torEndpoint)throw Error('Tor is not available on this server');
   const {name,url}=runtimeEngine==='static'&&!settings.tor?{name:settings.transport,url:staticWisp}:route();
@@ -110,7 +137,7 @@ async function switchTransport(){
   status('Connecting…');
   if(runtimeEngine==='2'){
     if(!v2Controller)throw Error('Scramjet 2 is not initialized');
-    const {default: Transport}=await import(name==='libcurl'?'/v2-libcurl/index.mjs':'/v2-epoxy/index.mjs');
+    const {default: Transport}=await import(name==='libcurl'?appPath('/v2-libcurl/index.mjs'):appPath('/v2-epoxy/index.mjs'));
     v2Controller.setTransport(new Transport({wisp:url}));
     activeTransport=key;
     status(settings.tor?'Tor route selected':name+' ready');
@@ -118,16 +145,16 @@ async function switchTransport(){
   }
   if(runtimeEngine==='static'){
     try {
-      await mux.setTransport('/static/transport/'+name+'.mjs',[{wisp:url}]);
+      await mux.setTransport(appPath('/static/transport/'+name+'.mjs'),[{wisp:url}]);
     } catch(error) {
       logDiagnostic('static transport error',error.message||error);
       if(name!=='libcurl') {
-        await mux.setTransport('/static/transport/libcurl.mjs',[{wisp:url}]);
+        await mux.setTransport(appPath('/static/transport/libcurl.mjs'),[{wisp:url}]);
         status('Static Scramjet: libcurl fallback connected');
       } else throw error;
     }
-  }else if(name==='libcurl')await mux.setTransport('/libcurl/index.mjs',[{websocket:url}]);
-  else await mux.setTransport('/epoxy/index.mjs',[{wisp:url}]);
+  }else if(name==='libcurl')await mux.setTransport(appPath('/libcurl/index.mjs'),[{websocket:url}]);
+  else await mux.setTransport(appPath('/epoxy/index.mjs'),[{wisp:url}]);
   activeTransport=key;
   status(settings.tor?'Tor route selected':name+' ready');
 }
@@ -191,6 +218,7 @@ function activate(id){
 }
 function createTab(url=''){
   const tab=makeTab();activate(tab.id);if(url)navigate(url);else $('emptyTabAddress').focus();
+  return tab;
 }
 function closeTab(id){
   const idx=tabs.findIndex(t=>t.id===id);if(idx<0)return;
@@ -223,11 +251,11 @@ function refreshTabMetadata(tab){
     if(rawIcon){
       const resolved=new URL(rawIcon,doc.baseURI).href;
       if(/^https?:\/\//.test(resolved)){
-        const next=resolved.startsWith(location.origin+'/')?resolved:(runtimeEngine!=='2'?'/service/'+encodeURIComponent(resolved):'');
+        const next=resolved.startsWith(location.origin+'/')?resolved:(runtimeEngine!=='2'?appPath('/service/')+encodeURIComponent(resolved):'');
         if(next && next!==tab.icon){tab.icon=next;changed=true;}
       }
     }else if(!tab.icon&&tab.url&&runtimeEngine!=='2'){
-      tab.icon='/service/'+encodeURIComponent(new URL('/favicon.ico',tab.url).href);changed=true;
+      tab.icon=appPath('/service/')+encodeURIComponent(new URL('/favicon.ico',tab.url).href);changed=true;
     }
   }catch(e){logDiagnostic('metadata error',e.message||e);}
   if(changed){if(tab.id===current)updateUI();else drawTabs();saveData();}
@@ -263,6 +291,81 @@ async function inspectScramjetDatabase(){
   });
 }
 
+function popupDestination(value,base){
+  try{
+    const destination=new URL(String(value||''),base||location.href);
+    if(!['http:','https:'].includes(destination.protocol))return '';
+    if(destination.origin===location.origin){
+      const pathname=decodeURIComponent(destination.pathname);
+      for(const prefix of [appPath(appPath('/static/scramjet/')),appPath(appPath('/v2/p/')),appPath(appPath('/service/'))]){
+        if(pathname.startsWith(prefix)){
+          const original=pathname.slice(prefix.length).replace(/^\/+/, '');
+          if(/^https?:\/\//i.test(original)){
+            const resolved=new URL(original);
+            if(destination.search)resolved.search=destination.search;
+            if(destination.hash)resolved.hash=destination.hash;
+            return resolved.href;
+          }
+        }
+      }
+    }
+    return destination.href;
+  }catch{return '';}
+}
+function openProxyPopup(value,base){
+  const destination=popupDestination(value,base||location.href);
+  if(proxyOnlyMode()){
+    const target=appPath('/')+(destination?'?open='+encodeURIComponent(destination):'?popup=1');
+    const popup=window.open(target,'_blank');
+    if(popup){try{popup.opener=null;}catch{};return popup;}
+    if(destination){status('Pop-up blocked; opening the link in this page instead.');void navigate(destination);}
+    return null;
+  }
+  const tab=createTab(destination||'');
+  if(!tab)return null;
+  const locationFacade={};
+  const go=value=>{
+    const next=popupDestination(value,tab.url||base||location.href);
+    if(next){activate(tab.id);void navigate(next,false);}
+  };
+  Object.defineProperties(locationFacade,{
+    href:{get:()=>tab.url||'',set:go},
+    assign:{value:go},
+    replace:{value:go},
+    reload:{value:()=>{if(tab.url){activate(tab.id);void navigate(tab.url,false);}}}
+  });
+  const handle={focus(){activate(tab.id);},close(){closeTab(tab.id);},postMessage(){}};
+  Object.defineProperty(handle,'location',{get:()=>locationFacade,set:go});
+  return handle;
+}
+function installPopupHandling(tab){
+  const frameWindow=tab.frame?.frame?.contentWindow;
+  const doc=tab.frame?.frame?.contentDocument;
+  if(!frameWindow||!doc?.documentElement)return;
+  if(doc.documentElement.dataset.hummingPopupHook==='1')return;
+  doc.documentElement.dataset.hummingPopupHook='1';
+  const handleLink=event=>{
+    if(event.defaultPrevented)return;
+    if(event.type==='click'&&event.button!==0)return;
+    if(event.type==='auxclick'&&event.button!==1)return;
+    const path=typeof event.composedPath==='function'?event.composedPath():[];
+    const anchor=path.find(node=>node?.tagName==='A'&&node.href)||event.target?.closest?.('a[href]');
+    if(!anchor||anchor.hasAttribute('download'))return;
+    const target=(anchor.getAttribute('target')||doc.querySelector('base[target]')?.getAttribute('target')||'').toLowerCase();
+    const wantsNewContext=(target&&target!=='_self')||event.ctrlKey||event.metaKey||event.shiftKey||event.type==='auxclick';
+    if(!wantsNewContext)return;
+    const destination=popupDestination(anchor.href,doc.baseURI);
+    if(!destination)return;
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    openProxyPopup(destination,doc.baseURI);
+  };
+  frameWindow.addEventListener('click',handleLink,true);
+  frameWindow.addEventListener('auxclick',handleLink,true);
+  const routedOpen=url=>openProxyPopup(url==null?'':String(url),doc.baseURI);
+  try{Object.defineProperty(frameWindow,'open',{configurable:true,writable:true,value:routedOpen});}
+  catch{try{frameWindow.open=routedOpen;}catch{}}
+}
 function ensureFrame(tab){
   if(tab.frame)return;
   if(runtimeEngine==='2'){
@@ -275,6 +378,7 @@ function ensureFrame(tab){
   tab.frame.frame.classList.add('frame-pending');
   $('frameHost').append(tab.frame.frame);
   tab.frame.frame.addEventListener('load',()=>{
+    installPopupHandling(tab);
     monitorTabMetadata(tab);
     if(!tab.busy){logDiagnostic('iframe bootstrap load','Initial frame document; no proxied navigation was in progress');return;}
     tab.busy=false;logDiagnostic('iframe load',tab.url);
@@ -300,8 +404,8 @@ async function navigate(input,push=true){
     if(setupFailed){status('Proxy not ready: '+setupFailed);showRecovery('The selected engine failed to start: '+setupFailed+' Try another Scramjet version in Settings or reload.');return;}
     pendingSearch={input:url,push};$('address').value=input;status('Preparing '+(runtimeEngine==='static'?'Static Scramjet':'Scramjet '+(runtimeEngine||settings.scramjetVersion))+' — your search will open when ready…');return;
   }
-  if(settings.proxyOnly){$('home').classList.add('hidden');$('browser').classList.remove('hidden');}
-  let tab=currentTab();if(!tab||(isHomeVisible()&&!settings.proxyOnly)){tab=makeTab();current=tab.id;}
+  if(proxyOnlyMode()){$('home').classList.add('hidden');$('browser').classList.remove('hidden');}
+  let tab=currentTab();if(!tab||(isHomeVisible()&&!proxyOnlyMode())){tab=makeTab();current=tab.id;}
   hideRecovery();loading(true,'Resolving address…');setLoadPhase(12,'Resolving address…');
   try{
     setLoadPhase(27,'Connecting proxy transport…');await switchTransport();setLoadPhase(43,'Preparing browser frame…');ensureFrame(tab);
@@ -316,13 +420,13 @@ async function navigate(input,push=true){
 }
 async function refreshTor(){
   try{
-    const response=await fetch('/api/config',{cache:'no-store'});if(!response.ok)throw Error('Backend unavailable');
+    const response=await fetch(appPath('/api/config'),{cache:'no-store'});if(!response.ok)throw Error('Backend unavailable');
     const c=await response.json();torEndpoint=c.torAvailable?(c.torWispUrl==='__LOCAL_TOR__'?`${location.protocol==='https:'?'wss:':'ws:'}//${location.host}/tor-wisp/`:c.torWispUrl):'';
     $('tor').disabled=!torEndpoint;
     if(!torEndpoint&&settings.tor){settings.tor=false;activeTransport='';persist();}
     $('tor').checked=settings.tor;
     $('torNote').textContent=torEndpoint?'Tor exit verified by backend. Extra startup time is normal.':(c.torStarting?'Tor is starting; try again shortly.':'Tor unavailable. Docker deployment required.');
-  }catch{$('tor').disabled=true;$('torNote').textContent='Cannot check Tor status';}
+  }catch{$('tor').disabled=true;$('torNote').textContent=isPagesHost?'Tor requires the optional server backend and is unavailable on GitHub Pages.':'Cannot check Tor status';}
 }
 function waitForWorker(registration,timeout=18000){
   return new Promise((resolve,reject)=>{
@@ -346,7 +450,14 @@ async function init(){
   $('engine').value=settings.engine;$('transport').value=settings.transport;$('adblock').checked=settings.adblock;syncAppearanceControls();
   $('pathSearch').checked=settings.pathSearch===true;$('proxyOnly').checked=settings.proxyOnly===true;$('historyEnabled').checked=settings.historyEnabled===true;updateCustomSearchUrl();$('customTabTitle').value=settings.customTabTitle||'';$('customFavicon').value=settings.customFavicon||'';
   drawBookmarks();
-  $('scramjetVersion').value=settings.scramjetVersion; $('autoFallback').checked=settings.autoFallback!==false;
+  if(isPagesHost){
+    settings.scramjetVersion='static';
+    $('scramjetVersion').value='static';
+    $('scramjetVersion').disabled=true;
+    $('scramjetVersion').title='GitHub Pages uses the bundled Static Scramjet runtime.';
+    persist();
+  }else $('scramjetVersion').value=settings.scramjetVersion;
+  $('autoFallback').checked=settings.autoFallback!==false;
   if(!tabs.length){current=makeTab().id;updateUI();}
   $('go').disabled=false;
   if(window.top!==window){logDiagnostic('embedded mode','iframe storage may be restricted');$('embeddedNotice').classList.remove('hidden');}
@@ -384,7 +495,7 @@ async function init(){
     logDiagnostic('initialized',fallbackLabel||('Scramjet '+runtimeEngine));
     status(fallbackLabel?'Ready · '+fallbackLabel:'Ready · Scramjet '+runtimeEngine);
     $('go').disabled=false;
-    const valid=Array.isArray(storedTabs)?storedTabs.filter(t=>t&&typeof t.url==='string'):[];
+    const valid=!searchPresentation&&Array.isArray(storedTabs)?storedTabs.filter(t=>t&&typeof t.url==='string'):[];
     if(valid.length){tabs=[];valid.forEach(t=>makeTab(t));current=tabs[0].id;}
     updateUI();
     const params=new URLSearchParams(location.search);
@@ -393,8 +504,13 @@ async function init(){
     const isEmbedded=window.top!==window;
     const iframeBase=iframeEntryBase(pathname);
     const query=params.get('q');
-    if(query!==null&&query.trim()&&(isSearchRoute||isEmbedded||iframeBase||settings.pathSearch)){
-      const cleanPath=iframeBase||(pathname.replace(/\/search\/?$/i,'')||'/');
+    const openTarget=params.get('open');
+    if(openTarget){
+      const destination=popupDestination(openTarget,location.href);
+      history.replaceState(null,'',appPath('/')+location.hash);
+      if(destination)pendingSearch={input:destination,push:true};
+    }else if(query!==null&&query.trim()&&(isSearchRoute||isEmbedded||iframeBase||settings.pathSearch||searchPresentation)){
+      const cleanPath=iframeBase||appPath('/');
       history.replaceState(null,'',cleanPath+location.hash);
       pendingSearch={input:query,push:true};
     }
@@ -402,26 +518,26 @@ async function init(){
     else home();
   }catch(e){
     setupFailed=String(e.message||e);pendingSearch=null;
-    logDiagnostic('setup error',e.message||e);console.error('HummingProxy setup',e);status('Setup failed — select Scramjet 2 or open Storage Diagnostics');
+    logDiagnostic('setup error',e.message||e);console.error('HummingProxy setup',e);status('Setup failed — open Diagnostics or try Scramjet 1');
     showRecovery(e.message||String(e));$('setupError').textContent='Proxy setup failed: '+(e.message||String(e))+(String(e.message||'').includes('object stores')?' Scramjet 1 database has missing stores. Scramjet 2 may work on this device.':'');$('setupError').classList.remove('hidden');$('repairProxy').classList.remove('hidden');$('go').disabled=false;
   }
 }
 function isMissingStore(error){return /object store|NotFoundError|transaction.*IDBDatabase/i.test(String(error?.message||error));}
 async function initializeV2(){
       status('Loading Scramjet 2…');
-      for(const src of ['/v2-scram/scramjet.js','/v2-controller/controller.api.js','/v2-utils/scramjet-utils.js']){
+      for(const src of [appPath('/v2-scram/scramjet.js'),appPath('/v2-controller/controller.api.js'),appPath('/v2-utils/scramjet-utils.js')]){
         await new Promise((resolve,reject)=>{const tag=document.createElement('script');tag.src=src;tag.onload=resolve;tag.onerror=()=>reject(Error('Could not load '+src));document.head.append(tag);});
       }
-      const registration=await navigator.serviceWorker.register('/sw-v2.js',{scope:'/v2/',updateViaCache:'none'});
+      const registration=await navigator.serviceWorker.register(appPath('/sw-v2.js'),{scope:appPath('/v2/'),updateViaCache:'none'});
       const activatedWorker=await waitForWorker(registration);
-      const {default: Transport}=await import(settings.transport==='libcurl'?'/v2-libcurl/index.mjs':'/v2-epoxy/index.mjs');
+      const {default: Transport}=await import(settings.transport==='libcurl'?appPath('/v2-libcurl/index.mjs'):appPath('/v2-epoxy/index.mjs'));
       const initialRoute=route();
       if(settings.tor&&!torEndpoint)throw Error('Tor is unavailable');
       v2Controller=new window.$scramjetController.Controller({
         serviceworker:activatedWorker,
         transport:new Transport({wisp:initialRoute.url}),
-        config:{prefix:'/v2/p/',scramjetPath:'/v2-scram/scramjet.js',wasmPath:'/v2-scram/scramjet.wasm',injectPath:'/v2-controller/controller.inject.js'},
-        scramjetConfig:{files:{wasm:'/v2-scram/scramjet.wasm'}}
+        config:{prefix:appPath('/v2/p/'),scramjetPath:appPath('/v2-scram/scramjet.js'),wasmPath:appPath('/v2-scram/scramjet.wasm'),injectPath:appPath('/v2-controller/controller.inject.js')},
+        scramjetConfig:{files:{wasm:appPath('/v2-scram/scramjet.wasm')}}
       });
       await v2Controller.wait();
       activeTransport=initialRoute.name+'|'+initialRoute.url;
@@ -433,42 +549,51 @@ async function initializeV2(){
 async function initializeStatic(){
   status('Loading Static Scramjet…');
   try{
-    const response=await fetch('/static/wisp.txt',{cache:'no-store'});
+    const response=await fetch(appPath('/static/wisp.txt'),{cache:'no-store'});
     if(response.ok){const match=(await response.text()).match(/WISP URL:\s*(\S+)/i);if(match&&/^wss:\/\//i.test(match[1]))staticWisp=match[1];}
   }catch{}
-  await import('/static/scramjet-engine/scramjet.js');
+  await import(appPath('/static/scramjet-engine/scramjet.js'));
   if(!window.$scramjetLoadController)throw Error('Static Scramjet library unavailable');
   const {ScramjetController}=window.$scramjetLoadController();
   scramjet=new ScramjetController({
-    prefix:'/static/scramjet/',
-    files:{wasm:'/static/scramjet-engine/scramjet.wasm',all:'/static/scramjet-engine/scramjet-all.js',sync:'/static/scramjet-engine/scramjet-sync.js'}
+    prefix:appPath('/static/scramjet/'),
+    files:{wasm:appPath('/static/scramjet-engine/scramjet.wasm'),all:appPath('/static/scramjet-engine/scramjet-all.js'),sync:appPath('/static/scramjet-engine/scramjet-sync.js')}
   });
   status('Initializing Static Scramjet storage…');
   await scramjet.init();
   status('Registering Static Scramjet worker…');
-  const registration=await navigator.serviceWorker.register('/static/sw.js',{scope:'/static/',updateViaCache:'none'});
+  const registration=await navigator.serviceWorker.register(appPath('/static/sw.js'),{scope:appPath('/static/'),updateViaCache:'none'});
   await waitForWorker(registration);
   if(!window._0zzl94?._ak44v7){
     await new Promise((resolve,reject)=>{
-      const tag=document.createElement('script');tag.src='/static/bare-mux/bare-mux.js';
+      const tag=document.createElement('script');tag.src=appPath('/static/bare-mux/bare-mux.js');
       tag.onload=resolve;tag.onerror=()=>reject(Error('Static BareMux library failed to load'));document.head.append(tag);
     });
   }
   if(!window._0zzl94?._ak44v7)throw Error('Static BareMux API unavailable');
-  mux=new window._0zzl94._ak44v7('/static/bare-mux/bare-mux-worker.js');
+  mux=new window._0zzl94._ak44v7(appPath('/static/bare-mux/bare-mux-worker.js'));
   runtimeEngine='static';
 }
 async function initializeV1(){
+      if(!window.$scramjetLoadController){
+        await new Promise((resolve,reject)=>{
+          const tag=document.createElement('script');
+          tag.src=appPath('/scram/scramjet.all.js');
+          tag.onload=resolve;
+          tag.onerror=()=>reject(Error('Could not load '+tag.src));
+          document.head.append(tag);
+        });
+      }
       if(!window.$scramjetLoadController)throw Error('Scramjet library unavailable');
       const {ScramjetController}=window.$scramjetLoadController();
-      scramjet=new ScramjetController({prefix:'/service/',files:{wasm:'/scram/scramjet.wasm.wasm',all:'/scram/scramjet.all.js',sync:'/scram/scramjet.sync.js'}});
+      scramjet=new ScramjetController({prefix:appPath('/service/'),files:{wasm:appPath('/scram/scramjet.wasm.wasm'),all:appPath('/scram/scramjet.all.js'),sync:appPath('/scram/scramjet.sync.js')}});
       status('Initializing Scramjet storage…');
       await scramjet.init();
       status('Registering service worker…');
-      const registration=await navigator.serviceWorker.register('/sw.js',{scope:'/',updateViaCache:'none'});
+      const registration=await navigator.serviceWorker.register(appPath('/sw.js'),{scope:appPath('/'),updateViaCache:'none'});
       await waitForWorker(registration);
-      const {BareMuxConnection}=window.BareMux||await import('/baremux/index.mjs');
-      mux=new BareMuxConnection('/baremux/worker.js');
+      const {BareMuxConnection}=window.BareMux||await import(appPath('/baremux/index.mjs'));
+      mux=new BareMuxConnection(appPath('/baremux/worker.js'));
       runtimeEngine='1';
 }
 async function diagnosticsText(){
@@ -476,7 +601,7 @@ async function diagnosticsText(){
   const rect=f?.getBoundingClientRect();
   let workers=[];
   try{workers=(await navigator.serviceWorker.getRegistrations()).map(r=>({scope:r.scope,active:r.active?.state||'none',waiting:r.waiting?.state||'none'}));}catch(e){workers=['unavailable: '+e.message];}
-  const workerPath=runtimeEngine==='2'?'/v2/':runtimeEngine==='static'?'/static/':'/';
+  const workerPath=runtimeEngine==='2'?appPath('/v2/'):runtimeEngine==='static'?appPath('/static/'):'/';
   const workerScope=new URL(workerPath,location.origin).href;
   const engineWorker=workers.find(w=>w.scope===workerScope);
   const pageUrl=String(t?.url||'');
@@ -490,11 +615,11 @@ async function diagnosticsText(){
     'Time: '+new Date().toISOString(),
     'Browser: '+navigator.userAgent,
     'Origin: '+location.origin,
-    'Proxy-only mode: '+Boolean(settings.proxyOnly),
-    'Custom search URL: '+location.origin+'/search?q=%s',
+    'Proxy-only mode: '+Boolean(proxyOnlyMode()),
+    'Custom search URL: '+location.origin+appPath('/search?q=%s'),
     'Embedded: '+(window.top!==window),
     'Secure context: '+window.isSecureContext,
-    'Preferred engine: Scramjet '+settings.scramjetVersion+(settings.scramjetVersion==='2'?' (default)':''),
+    'Preferred engine: '+(settings.scramjetVersion==='static'?'Static Scramjet':'Scramjet '+settings.scramjetVersion),
     'Active engine: '+(runtimeEngine?'Scramjet '+runtimeEngine:'none'),
     'Engine initialized: '+Boolean(runtimeEngine),
     'Fallback used: '+(fallbackV1?'yes — Scramjet 1':fallbackV2?'yes — Scramjet 2':'no'),
@@ -526,7 +651,7 @@ $('diagnosticsBtn').onclick=()=>{$('diagnosticsPanel').classList.toggle('hidden'
 $('closeDiagnostics').onclick=()=>$('diagnosticsPanel').classList.add('hidden');
 $('refreshDiagnostics').onclick=()=>void refreshDiagnostics();
 $('copyDiagnostics').onclick=async()=>{const content=await diagnosticsText();try{await navigator.clipboard.writeText(content);status('Diagnostics copied');}catch{const area=document.createElement('textarea');area.value=content;document.body.append(area);area.select();document.execCommand('copy');area.remove();status('Diagnostics copy attempted');}};
-$('repairProxy').onclick=()=>{location.assign('/repair.html');};
+$('repairProxy').onclick=()=>{location.assign(appPath('/repair.html'));};
 $('recoveryDismiss').onclick=hideRecovery;
 $('recoveryRetry').onclick=()=>location.reload();
 $('searchForm').onsubmit=e=>{e.preventDefault();void navigate($('address').value);};
@@ -584,8 +709,8 @@ $('engine').onchange=e=>{settings.engine=e.target.value;persist();};
 $('pathSearch').onchange=e=>{settings.pathSearch=e.target.checked;persist();};
 $('proxyOnly').onchange=e=>{
   settings.proxyOnly=e.target.checked;persist();applyAppearance();
-  if(settings.proxyOnly){$('home').classList.add('hidden');$('browser').classList.remove('hidden');$('emptyTab').classList.add('hidden');}
-  else if(!currentTab()?.url&&!currentTab()?.frame){$('browser').classList.add('hidden');$('home').classList.remove('hidden');}
+  if(proxyOnlyMode()){$('home').classList.add('hidden');$('browser').classList.remove('hidden');$('emptyTab').classList.add('hidden');}
+  else if(!proxyOnlyMode()&&!currentTab()?.url&&!currentTab()?.frame){$('browser').classList.add('hidden');$('home').classList.remove('hidden');}
 };
 $('historyEnabled').onchange=e=>{if(e.target.checked&&!confirm('Enable HummingProxy in-app browsing history? Visited URLs may be stored on this device. This does not control network or server-side logs.')){e.target.checked=false;return;}settings.historyEnabled=e.target.checked;if(!settings.historyEnabled){for(const tab of tabs){tab.history=[];tab.index=-1;}}persist();saveData();updateUI();};
 $('customTabTitle').oninput=e=>{settings.customTabTitle=e.target.value.slice(0,80);persist();applyAppearance();};
@@ -607,6 +732,7 @@ async function changeRoute(key,value){
 $('scramjetVersion').onchange=e=>{
   const next=e.target.value;
   if(next===settings.scramjetVersion)return;
+  if(isPagesHost&&next!=='static')return;
   settings.scramjetVersion=next;persist();location.reload();
 };
 $('transport').onchange=e=>changeRoute('transport',e.target.value);
@@ -617,7 +743,7 @@ function home(){
   $('diagnosticsPanel').classList.add('hidden');
   hideRecovery();
   for(const tab of tabs)if(tab.frame?.frame){tab.frame.frame.classList.add('hidden');tab.frame.frame.style.pointerEvents='none';}
-  if(settings.proxyOnly){
+  if(proxyOnlyMode()){
     $('home').classList.add('hidden');
     $('browser').classList.remove('hidden');
     $('emptyTab').classList.add('hidden');

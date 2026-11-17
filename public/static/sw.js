@@ -15,8 +15,15 @@ self.addEventListener('activate', (event) => {
   event.waitUntil(self.clients.claim())
 })
 
+let configPromise
 async function handleRequest(event) {
-  await scramjet.loadConfig()
+  if (!configPromise) {
+    configPromise = scramjet.loadConfig().catch(error => {
+      configPromise = undefined
+      throw error
+    })
+  }
+  await configPromise
   if (!scramjet.route(event)) return fetch(event.request)
   return scramjet.fetch(event)
 }
