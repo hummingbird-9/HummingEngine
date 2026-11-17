@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "build": "npm install --prefix v2 --no-audit --no-fund && tsc -p tsconfig.json",
-    "build:pages": "node scripts/build-pages.mjs",
+    "build:pages": "npm install --prefix v2 --no-audit --no-fund && node scripts/build-pages.mjs",
     "start": "node dist/server.js",
     "dev": "tsx watch src/server.ts",
     "check": "tsc --noEmit"
