@@ -198,3 +198,5 @@ html.proxy-only .load-progress { width:100%; height:4px; margin:0; border-radius
   min-height:0;
   flex:1 1 auto;
 }
+
+.field small{color:#c1dac7;font-size:11px;line-height:1.45;}

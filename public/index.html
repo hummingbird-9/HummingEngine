@@ -8,7 +8,7 @@
   <meta name="app-host" content="server">
   <base href="/">
   <title>HummingProxy</title>
-  <link rel="stylesheet" href="style.css?v=scramjet2-static-parity-3">
+  <link rel="stylesheet" href="style.css?v=scramjet2-epoxy-cache-4">
   <script src="app.js?v=scramjet2-static-parity-3" defer></script>
 </head>
 <body>
@@ -93,7 +93,7 @@
       <label class="field">Search engine<select id="engine"><option value="duckduckgo">DuckDuckGo</option><option value="google" selected>Google</option><option value="firefox">Firefox (Google results)</option></select></label>
       <label class="field">Scramjet version<select id="scramjetVersion"><option value="2">Scramjet 2.0.67-alpha.2 (Pages default; experimental)</option><option value="1">Scramjet 1.1.0 (stable fallback)</option><option value="static">Static Scramjet 1.10 (legacy)</option></select></label>
       <label class="toggle"><span>Automatically fall back to the other Scramjet version if the selected one fails<small>Turn off to show the startup error without switching engines</small></span><input id="autoFallback" type="checkbox" checked></label>
-      <label class="field">Transport<select id="transport"><option value="libcurl">libcurl (default)</option><option value="epoxy">Epoxy</option></select></label>
+      <label class="field">Transport<select id="transport"><option value="epoxy">Epoxy (lighter; recommended)</option><option value="libcurl">libcurl (compatibility)</option></select><small>Epoxy is lighter on slower devices. Switch to libcurl if a site has compatibility problems.</small></label>
       <label class="toggle"><span>Enable adblock<small>Basic page-element hiding only</small></span><input id="adblock" type="checkbox"></label>
       <label class="toggle"><span>Enable Tor browsing<small id="torNote">Checking built-in Tor…</small></span><input id="tor" type="checkbox"></label>
       <label class="toggle"><span>Show bookmark bar</span><input id="showBookmarks" type="checkbox" checked></label>

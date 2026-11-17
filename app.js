@@ -1,7 +1,7 @@
 (() => {
 'use strict';
 const $ = id => document.getElementById(id);
-const defaults = {engine:'google',transport:'libcurl',adblock:false,tor:false,bookmarksVisible:true,scramjetVersion:'2',autoFallback:true,theme:'classic',colorA:'#0a2e0a',colorB:'#1a5d1a',accent:'#90e4c1',newTabBackground:'',pageBackground:'',wallpaperDim:30,rounding:12,font:'Segoe UI',motion:true,buttonColor:'#205b35',buttonTextColor:'#e0f7e0',buttonSize:'normal',buttonStyle:'glass',buttonHover:true,pathSearch:false,proxyOnly:false,historyEnabled:false,customTabTitle:'',customFavicon:''};
+const defaults = {engine:'google',transport:'epoxy',adblock:false,tor:false,bookmarksVisible:true,scramjetVersion:'2',autoFallback:true,theme:'classic',colorA:'#0a2e0a',colorB:'#1a5d1a',accent:'#90e4c1',newTabBackground:'',pageBackground:'',wallpaperDim:30,rounding:12,font:'Segoe UI',motion:true,buttonColor:'#205b35',buttonTextColor:'#e0f7e0',buttonSize:'normal',buttonStyle:'glass',buttonHover:true,pathSearch:false,proxyOnly:false,historyEnabled:false,customTabTitle:'',customFavicon:''};
 const read = (key, fallback) => {try {return JSON.parse(localStorage.getItem(key)) ?? fallback;} catch {return fallback;}};
 const settings = {...defaults,...read('hummingproxy-settings',{})};
 delete settings.chromeMode; // Chrome mode has been retired.
@@ -21,6 +21,12 @@ const launchQuery = launchParams.get('q');
 const launchOpen = launchParams.get('open');
 const searchPresentation = Boolean((launchQuery&&launchQuery.trim())||(launchOpen&&launchOpen.trim())||launchParams.has('popup'));
 const isPagesHost = document.querySelector('meta[name="app-host"]')?.content === 'github-pages';
+const migratePagesEpoxyDefault = isPagesHost && !read('hummingproxy-pages-epoxy-default-v1',false);
+if(migratePagesEpoxyDefault){
+  settings.transport='epoxy';
+  try{localStorage.setItem('hummingproxy-pages-epoxy-default-v1','true');}catch{}
+  persist();
+}
 if(isPagesHost&&!read('hummingproxy-pages-scramjet2-default',false)){
   settings.scramjetVersion='2';
   try{localStorage.setItem('hummingproxy-pages-scramjet2-default','true');}catch{}
@@ -368,7 +374,11 @@ function installPopupHandling(tab){
 function ensureFrame(tab){
   if(tab.frame)return;
   if(runtimeEngine==='2'){
-    const raw=v2Controller.createFrame();
+    const plugins=[];
+    const HttpCachePlugin=window.$scramjetUtils?.HttpCachePlugin;
+    if(typeof HttpCachePlugin==='function')plugins.push(new HttpCachePlugin());
+    else logDiagnostic('HTTP cache unavailable','Scramjet Utils did not expose HttpCachePlugin');
+    const raw=v2Controller.createFrame(undefined,{plugins});
     tab.frame={frame:raw.element,go:url=>raw.go(url)};
   }else tab.frame=scramjet.createFrame();
   tab.frame.frame.title='HummingProxy: '+tab.title;
@@ -380,7 +390,13 @@ function ensureFrame(tab){
     installPopupHandling(tab);
     monitorTabMetadata(tab);
     if(!tab.busy){logDiagnostic('iframe bootstrap load','Initial frame document; no proxied navigation was in progress');return;}
-    tab.busy=false;logDiagnostic('iframe load',tab.url);
+    tab.busy=false;
+    const frameLoadMs=tab.navigationStartedAt?Math.round(performance.now()-tab.navigationStartedAt):null;
+    const responseWaitMs=tab.requestSentAt?Math.round(performance.now()-tab.requestSentAt):null;
+    tab.lastFrameLoadMs=frameLoadMs;
+    tab.lastResponseWaitMs=responseWaitMs;
+    logDiagnostic('iframe load',tab.url);
+    if(frameLoadMs!==null)logDiagnostic('navigation timing',`frame load ${(frameLoadMs/1000).toFixed(2)}s total; ${responseWaitMs===null?'request timing unavailable':(responseWaitMs/1000).toFixed(2)+'s since request dispatch'}`);
     setLoadPhase(100,'Page response received (site rendering is not verified)');
     requestAnimationFrame(()=>{
       tab.frame?.frame.classList.remove('frame-pending');
@@ -408,11 +424,12 @@ async function navigate(input,push=true){
   hideRecovery();loading(true,'Resolving address…');setLoadPhase(12,'Resolving address…');
   try{
     setLoadPhase(27,'Connecting proxy transport…');await switchTransport();setLoadPhase(43,'Preparing browser frame…');ensureFrame(tab);
-    tab.url=url;tab.title=shortTitle(url);tab.icon='';tab.busy=true;tab.frame.frame.classList.add('frame-pending');
+    tab.url=url;tab.title=shortTitle(url);tab.icon='';tab.busy=true;tab.navigationStartedAt=performance.now();tab.requestSentAt=0;tab.frame.frame.classList.add('frame-pending');
     if(push&&settings.historyEnabled){tab.history=tab.history.slice(0,tab.index+1);tab.history.push(url);tab.index=tab.history.length-1;}else if(!settings.historyEnabled){tab.history=[];tab.index=-1;}
     if(settings.pathSearch){history.replaceState(null,'',searchRoutePath()+'?q='+encodeURIComponent(input.trim()));}
     $('home').classList.add('hidden');$('browser').classList.remove('hidden');$('emptyTab').classList.add('hidden');updateUI();saveData();
     logDiagnostic('navigate',url);setLoadPhase(68,'Request sent to '+new URL(url).hostname+'; waiting for response…');
+    tab.requestSentAt=performance.now();
     await tab.frame.go(url);
     trimFrames();
   }catch(e){logDiagnostic('navigation error',e.message||e);loading(false);tab.busy=false;status('Navigation failed: '+String(e.message||e).slice(0,130));showRecovery('Navigation failed: '+(e.message||String(e))+' Try reloading the proxy or switching engines.');}
@@ -650,6 +667,9 @@ async function diagnosticsText(){
     'Frame dimensions: '+(rect?Math.round(rect.width)+'x'+Math.round(rect.height):'none'),
     'Frame src: '+(f?.getAttribute('src')||'none'),
     'Frame loading: '+Boolean(t?.busy),
+    'Last frame-load time: '+(Number.isFinite(t?.lastFrameLoadMs)?(t.lastFrameLoadMs/1000).toFixed(2)+'s':'not measured yet'),
+    'Time since request dispatch: '+(Number.isFinite(t?.lastResponseWaitMs)?(t.lastResponseWaitMs/1000).toFixed(2)+'s':'not measured yet'),
+    'Device hints: '+(navigator.hardwareConcurrency||'unknown')+' logical CPU cores; '+(navigator.deviceMemory? navigator.deviceMemory+' GB reported RAM':'RAM estimate unavailable'),
     'Frame presentation: '+frameNote,
     'Top-level service worker controller: '+(navigator.serviceWorker.controller?.scriptURL||'none'),
     'Registrations: '+JSON.stringify(workers),
