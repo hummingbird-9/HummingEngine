@@ -451,11 +451,11 @@ async function init(){
   $('pathSearch').checked=settings.pathSearch===true;$('proxyOnly').checked=settings.proxyOnly===true;$('historyEnabled').checked=settings.historyEnabled===true;updateCustomSearchUrl();$('customTabTitle').value=settings.customTabTitle||'';$('customFavicon').value=settings.customFavicon||'';
   drawBookmarks();
   if(isPagesHost){
-    settings.scramjetVersion='2';
+    settings.scramjetVersion='1';
     settings.tor=false;
-    $('scramjetVersion').value='2';
-    $('scramjetVersion').disabled=true;
-    $('scramjetVersion').title='GitHub Pages uses bundled Scramjet 2.0.67-alpha.2. Static Scramjet remains available as a fallback.';
+    $('scramjetVersion').value='1';
+    $('scramjetVersion').disabled=false;
+    $('scramjetVersion').title='GitHub Pages defaults to stable Scramjet 1.1.0. Scramjet 2.0.67-alpha.2 remains available as an experimental option.';
     persist();
   }else $('scramjetVersion').value=settings.scramjetVersion;
   $('autoFallback').checked=settings.autoFallback!==false;
@@ -477,7 +477,7 @@ async function init(){
         logDiagnostic('Scramjet '+primary+' setup failed',primaryMessage);
         if(settings.autoFallback===false)throw Error('Scramjet '+primary+' failed: '+primaryMessage+' (automatic fallback is disabled)');
         runtimeEngine='';activeTransport='';scramjet=null;mux=null;v2Controller=null;
-        const backup=primary==='2'&&isPagesHost?'static':(primary==='2'?'1':'2');
+        const backup=primary==='2'?'1':'2';
         const backupLabel=backup==='static'?'Static Scramjet':'Scramjet '+backup;
         status('Scramjet '+primary+' failed; trying '+backupLabel+' fallback…');
         if(backup==='static')fallbackStatic=true;
@@ -585,6 +585,7 @@ async function initializeStatic(){
   runtimeEngine='static';
 }
 async function initializeV1(){
+      if(isPagesHost&&!settings.tor)await loadStaticWisp();
       if(!window.$scramjetLoadController){
         await new Promise((resolve,reject)=>{
           const tag=document.createElement('script');
