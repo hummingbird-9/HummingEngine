@@ -29,6 +29,8 @@ jobs:
           node-version: 22
       - name: Configure GitHub Pages
         uses: actions/configure-pages@v5
+      - name: Check browser JavaScript syntax
+        run: node --check public/app.js && node --check app.js
       - name: Build static site
         run: npm run build:pages
       - name: Upload Pages artifact
