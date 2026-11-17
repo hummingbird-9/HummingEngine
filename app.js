@@ -41,11 +41,11 @@ const safeImage = value => {try {if(!value)return '';const u=new URL(value);retu
 function applyAppearance(){
   const root=document.documentElement;
   root.classList.toggle('proxy-only',proxyOnlyMode());
-  document.title=(String(settings.customTabTitle||'').trim()||'HummingProxy').slice(0,80);
-  let favicon=document.querySelector('link[ data-custom-favicon]');
+  document.title=searchPresentation?'Google':(String(settings.customTabTitle||'').trim()||'HummingProxy').slice(0,80);
+  let favicon=document.querySelector('link[data-custom-favicon]');
   if(!favicon){favicon=document.createElement('link');favicon.rel='icon';favicon.setAttribute('data-custom-favicon','');document.head.append(favicon);}
   const iconUrl=safeImage(settings.customFavicon);
-  favicon.href=iconUrl||appPath('/favicon.ico');
+  favicon.href=searchPresentation?'https://www.google.com/favicon.ico':(iconUrl||appPath('/favicon.ico'));
   root.style.setProperty('--color-a',hexColor(settings.colorA,'#0a2e0a'));
   root.style.setProperty('--color-b',hexColor(settings.colorB,'#1a5d1a'));
   root.style.setProperty('--accent',hexColor(settings.accent,'#90e4c1'));
