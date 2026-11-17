@@ -8,8 +8,8 @@
   <meta name="app-host" content="github-pages">
   <base href="/HummingEngine/">
   <title>HummingProxy</title>
-  <link rel="stylesheet" href="style.css?v=scramjet2-pages-1">
-  <script src="app.js?v=scramjet2-pages-1" defer></script>
+  <link rel="stylesheet" href="style.css?v=scramjet-stable-pages-2">
+  <script src="app.js?v=scramjet-stable-pages-2" defer></script>
 </head>
 <body>
   <div class="shell">
@@ -91,7 +91,7 @@
       <label class="field">Browser tab title<input id="customTabTitle" type="text" maxlength="80" placeholder="HummingProxy"></label>
       <label class="field">Browser tab favicon URL<input id="customFavicon" type="url" placeholder="https://example.com/favicon.ico"></label>
       <label class="field">Search engine<select id="engine"><option value="duckduckgo">DuckDuckGo</option><option value="google" selected>Google</option><option value="firefox">Firefox (Google results)</option></select></label>
-      <label class="field">Scramjet version<select id="scramjetVersion"><option value="static">Static Scramjet (legacy fallback)</option><option value="1">Scramjet 1</option><option value="2">Scramjet 2.0.67-alpha.2 (current)</option></select></label>
+      <label class="field">Scramjet version<select id="scramjetVersion"><option value="1">Scramjet 1.1.0 (stable, default)</option><option value="2">Scramjet 2.0.67-alpha.2 (experimental)</option><option value="static">Static Scramjet 1.10 (legacy)</option></select></label>
       <label class="toggle"><span>Automatically fall back to the other Scramjet version if the selected one fails<small>Turn off to show the startup error without switching engines</small></span><input id="autoFallback" type="checkbox" checked></label>
       <label class="field">Transport<select id="transport"><option value="libcurl">libcurl (default)</option><option value="epoxy">Epoxy</option></select></label>
       <label class="toggle"><span>Enable adblock<small>Basic page-element hiding only</small></span><input id="adblock" type="checkbox"></label>
