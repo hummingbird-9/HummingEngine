@@ -34,7 +34,7 @@ let bookmarks=read('hummingproxy-bookmarks',[]).filter(x=>x && typeof x.url==='s
 let tabs=[], current=null, scramjet=null, mux=null, v2Controller=null, ready=false, torEndpoint='', activeTransport='', loadTimeout=0, booting=false, pendingSearch=null;
 let storedTabs=read('hummingproxy-tabs',[]);
 let seq=0;
-let fallbackV2=false, fallbackV1=false, fallbackReason='', runtimeEngine='', storageRepair='not attempted', setupFailed='';
+let fallbackV2=false, fallbackV1=false, fallbackStatic=false, fallbackReason='', runtimeEngine='', storageRepair='not attempted', setupFailed='';
 let staticWisp='wss://anura.pro/wisp/';
 const hexColor = (value,fallback) => /^#[0-9a-f]{6}$/i.test(value||'')?value:fallback;
 const safeImage = value => {try {if(!value)return '';const u=new URL(value);return ['https:','http:'].includes(u.protocol)?u.href:'';}catch{return '';}};
@@ -128,7 +128,7 @@ function resolveUrl(input) {
   if(/^[^\s/]+\.[a-z]{2,}(?::\d+)?(?:[/?#]\S*)?$/i.test(v))return new URL('https://'+v).href;
   return searchUrls[settings.engine](v);
 }
-function route(){return {name:settings.transport,url:settings.tor?torEndpoint:`${location.protocol==='https:'?'wss:':'ws:'}//${location.host}${appPath('/wisp/')}`};}
+function route(){const url=settings.tor?torEndpoint:(isPagesHost?staticWisp:`${location.protocol==='https:'?'wss:':'ws:'}//${location.host}${appPath('/wisp/')}`);return {name:settings.transport,url};}
 async function switchTransport(){
   if(settings.tor&&!torEndpoint)throw Error('Tor is not available on this server');
   const {name,url}=runtimeEngine==='static'&&!settings.tor?{name:settings.transport,url:staticWisp}:route();
@@ -451,10 +451,11 @@ async function init(){
   $('pathSearch').checked=settings.pathSearch===true;$('proxyOnly').checked=settings.proxyOnly===true;$('historyEnabled').checked=settings.historyEnabled===true;updateCustomSearchUrl();$('customTabTitle').value=settings.customTabTitle||'';$('customFavicon').value=settings.customFavicon||'';
   drawBookmarks();
   if(isPagesHost){
-    settings.scramjetVersion='static';
-    $('scramjetVersion').value='static';
+    settings.scramjetVersion='2';
+    settings.tor=false;
+    $('scramjetVersion').value='2';
     $('scramjetVersion').disabled=true;
-    $('scramjetVersion').title='GitHub Pages uses the bundled Static Scramjet runtime.';
+    $('scramjetVersion').title='GitHub Pages uses bundled Scramjet 2.0.67-alpha.2. Static Scramjet remains available as a fallback.';
     persist();
   }else $('scramjetVersion').value=settings.scramjetVersion;
   $('autoFallback').checked=settings.autoFallback!==false;
@@ -476,11 +477,16 @@ async function init(){
         logDiagnostic('Scramjet '+primary+' setup failed',primaryMessage);
         if(settings.autoFallback===false)throw Error('Scramjet '+primary+' failed: '+primaryMessage+' (automatic fallback is disabled)');
         runtimeEngine='';activeTransport='';scramjet=null;mux=null;v2Controller=null;
-        const backup=primary==='2'?'1':'2';
-        status('Scramjet '+primary+' failed; trying Scramjet '+backup+' fallback…');
-        if(primary==='2')fallbackV1=true;else{fallbackV2=true;await inspectScramjetDatabase();}
+        const backup=primary==='2'&&isPagesHost?'static':(primary==='2'?'1':'2');
+        const backupLabel=backup==='static'?'Static Scramjet':'Scramjet '+backup;
+        status('Scramjet '+primary+' failed; trying '+backupLabel+' fallback…');
+        if(backup==='static')fallbackStatic=true;
+        else if(backup==='1')fallbackV1=true;
+        else{fallbackV2=true;await inspectScramjetDatabase();}
         try{
-          if(backup==='1')await initializeV1();else await initializeV2();
+          if(backup==='static')await initializeStatic();
+          else if(backup==='1')await initializeV1();
+          else await initializeV2();
         }catch(fallbackError){
           const fallbackMessage=String(fallbackError?.message||fallbackError);
           logDiagnostic('Scramjet '+backup+' fallback failed',fallbackMessage);
@@ -525,6 +531,7 @@ async function init(){
 function isMissingStore(error){return /object store|NotFoundError|transaction.*IDBDatabase/i.test(String(error?.message||error));}
 async function initializeV2(){
       status('Loading Scramjet 2…');
+      if(isPagesHost&&!settings.tor)await loadStaticWisp();
       for(const src of [appPath('/v2-scram/scramjet.js'),appPath('/v2-controller/controller.api.js'),appPath('/v2-utils/scramjet-utils.js')]){
         await new Promise((resolve,reject)=>{const tag=document.createElement('script');tag.src=src;tag.onload=resolve;tag.onerror=()=>reject(Error('Could not load '+src));document.head.append(tag);});
       }
@@ -546,12 +553,15 @@ async function initializeV2(){
       setInterval(keepV2WorkerAlive,15000);
       document.addEventListener('visibilitychange',()=>{if(!document.hidden)keepV2WorkerAlive();});
 }
-async function initializeStatic(){
-  status('Loading Static Scramjet…');
+async function loadStaticWisp(){
   try{
     const response=await fetch(appPath('/static/wisp.txt'),{cache:'no-store'});
     if(response.ok){const match=(await response.text()).match(/WISP URL:\s*(\S+)/i);if(match&&/^wss:\/\//i.test(match[1]))staticWisp=match[1];}
   }catch{}
+}
+async function initializeStatic(){
+  status('Loading Static Scramjet…');
+  await loadStaticWisp();
   await import(appPath('/static/scramjet-engine/scramjet.js'));
   if(!window.$scramjetLoadController)throw Error('Static Scramjet library unavailable');
   const {ScramjetController}=window.$scramjetLoadController();
@@ -622,7 +632,7 @@ async function diagnosticsText(){
     'Preferred engine: '+(settings.scramjetVersion==='static'?'Static Scramjet':'Scramjet '+settings.scramjetVersion),
     'Active engine: '+(runtimeEngine?'Scramjet '+runtimeEngine:'none'),
     'Engine initialized: '+Boolean(runtimeEngine),
-    'Fallback used: '+(fallbackV1?'yes — Scramjet 1':fallbackV2?'yes — Scramjet 2':'no'),
+    'Fallback used: '+(fallbackV1?'yes — Scramjet 1':fallbackV2?'yes — Scramjet 2':fallbackStatic?'yes — Static Scramjet':'no'),
     'Fallback reason: '+(fallbackReason||'none'),
     'Engine controller: '+(runtimeEngine==='2'?(v2Controller?'Scramjet 2 controller ready':'Scramjet 2 controller missing'):runtimeEngine==='static'?(scramjet?'Static Scramjet controller created':'Static controller missing'):(runtimeEngine==='1'?(scramjet?'Scramjet 1 controller created':'Scramjet 1 controller missing'):'none')),
     'Engine service worker: '+(engineWorker?engineWorker.active:'not registered for '+workerPath),
